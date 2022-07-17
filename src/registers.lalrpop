@@ -21,10 +21,10 @@ pub Register: Box<Register> = {
     })
 }
 
-RegisterBits: Vec<Box<Bitfield>> = "{" <v:Comma<Bitfield>> "}" => v;
+RegisterBits: Vec<Bitfield> = "{" <v:Comma<Bitfield>> "}" => v;
 
-Bitfield: Box<Bitfield> = {
-    <to:Num> ":" <from:Num> <name:String> => Box::new(Bitfield {<>})
+Bitfield: Bitfield = {
+    <to:Num> ":" <from:Num> <name:String> => Bitfield {<>}
 }
 
 Num: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();

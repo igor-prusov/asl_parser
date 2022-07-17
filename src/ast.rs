@@ -1,7 +1,7 @@
 pub struct Register {
     pub bits: u32,
     pub name: String,
-    pub bits_desc: Vec<Box<Bitfield>>,
+    pub bits_desc: Vec<Bitfield>,
 }
 
 #[derive(Debug, PartialEq)]

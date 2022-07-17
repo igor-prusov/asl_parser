@@ -26,7 +26,7 @@ fn asl() {
     assert_eq!(reg.as_ref().bits, 32);
     assert_eq!(reg.as_ref().bits_desc.len(), 2);
     assert_eq!(
-        *reg.as_ref().bits_desc[0].as_ref(),
+        reg.as_ref().bits_desc[0],
         Bitfield {
             to: 31,
             from: 31,
@@ -34,7 +34,7 @@ fn asl() {
         }
     );
     assert_eq!(
-        *reg.as_ref().bits_desc[1].as_ref(),
+        reg.as_ref().bits_desc[1],
         Bitfield {
             to: 15,
             from: 0,
