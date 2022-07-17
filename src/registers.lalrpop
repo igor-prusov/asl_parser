@@ -1,0 +1,31 @@
+use std::str::FromStr;
+use crate::ast::{Register, Bitfield};
+
+grammar;
+
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+pub Register: Box<Register> = {
+    "__register" <number:Num> <r:RegisterBits> <name:String> ";" => Box::new(Register {
+        bits: number,
+        name: name,
+        bits_desc: r,
+    })
+}
+
+RegisterBits: Vec<Box<Bitfield>> = "{" <v:Comma<Bitfield>> "}" => v;
+
+Bitfield: Box<Bitfield> = {
+    <to:Num> ":" <from:Num> <name:String> => Box::new(Bitfield {<>})
+}
+
+Num: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
+String: String = <s:r"[a-zA-Z][a-zA-Z0-9_]+"> => String::from(s);
