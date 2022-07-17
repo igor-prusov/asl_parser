@@ -13,19 +13,19 @@ Comma<T>: Vec<T> = {
     }
 };
 
-pub Register: Box<Register> = {
-    "__register" <number:Num> <r:RegisterBits> <name:String> ";" => Box::new(Register {
+pub Register: Register<'input> = {
+    "__register" <number:Num> <r:RegisterBits> <name:String> ";" => Register {
         bits: number,
         name: name,
         bits_desc: r,
-    })
+    }
 }
 
-RegisterBits: Vec<Bitfield> = "{" <v:Comma<Bitfield>> "}" => v;
+RegisterBits: Vec<Bitfield<'input>> = "{" <v:Comma<Bitfield>> "}" => v;
 
-Bitfield: Bitfield = {
+Bitfield: Bitfield<'input> = {
     <to:Num> ":" <from:Num> <name:String> => Bitfield {<>}
 }
 
 Num: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
-String: String = <s:r"[a-zA-Z][a-zA-Z0-9_]+"> => String::from(s);
+String: &'input str = <s:r"[a-zA-Z][a-zA-Z0-9_]+"> => s;

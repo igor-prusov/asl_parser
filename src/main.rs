@@ -11,8 +11,8 @@ fn asl() {
     let reg = registers::RegisterParser::new()
         .parse("__register 32 {} SOME_REG;")
         .unwrap();
-    assert_eq!(reg.as_ref().name, "SOME_REG");
-    assert_eq!(reg.as_ref().bits, 32);
+    assert_eq!(reg.name, "SOME_REG");
+    assert_eq!(reg.bits, 32);
 
     // Missing ;
     assert!(registers::RegisterParser::new()
@@ -22,32 +22,32 @@ fn asl() {
     let reg = registers::RegisterParser::new()
         .parse("__register 32 { 31:31 OneBit, 15:0 SomeBits } ANOTHER_REG;")
         .unwrap();
-    assert_eq!(reg.as_ref().name, "ANOTHER_REG");
-    assert_eq!(reg.as_ref().bits, 32);
-    assert_eq!(reg.as_ref().bits_desc.len(), 2);
+    assert_eq!(reg.name, "ANOTHER_REG");
+    assert_eq!(reg.bits, 32);
+    assert_eq!(reg.bits_desc.len(), 2);
     assert_eq!(
-        reg.as_ref().bits_desc[0],
+        reg.bits_desc[0],
         Bitfield {
             to: 31,
             from: 31,
-            name: String::from("OneBit"),
+            name: "OneBit",
         }
     );
     assert_eq!(
-        reg.as_ref().bits_desc[1],
+        reg.bits_desc[1],
         Bitfield {
             to: 15,
             from: 0,
-            name: String::from("SomeBits"),
+            name: "SomeBits",
         }
     );
 
     let reg = registers::RegisterParser::new()
         .parse("__register 32 {  } EMPTY;")
         .unwrap();
-    assert_eq!(reg.as_ref().name, "EMPTY");
-    assert_eq!(reg.as_ref().bits, 32);
-    assert_eq!(reg.as_ref().bits_desc.len(), 0);
+    assert_eq!(reg.name, "EMPTY");
+    assert_eq!(reg.bits, 32);
+    assert_eq!(reg.bits_desc.len(), 0);
 }
 
 #[cfg(not(test))]
