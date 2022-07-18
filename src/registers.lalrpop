@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::ast::{Register, Bitfield};
+use crate::ast::{Statement, Register, Bitfield};
 
 grammar;
 
@@ -12,6 +12,15 @@ Comma<T>: Vec<T> = {
         }
     }
 };
+
+pub Program: Vec<Statement<'input>> = {
+    <v:(Statement)*> => v,
+}
+
+pub Statement: Statement<'input> = {
+    <r:Register> => Statement::Register(r),
+    r"//.*" => Statement::Comment,
+}
 
 pub Register: Register<'input> = {
     "__register" <number:Num> <r:RegisterBits> <name:String> ";" => Register {
@@ -28,4 +37,5 @@ Bitfield: Bitfield<'input> = {
 }
 
 Num: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
+
 String: &'input str = <s:r"[a-zA-Z][a-zA-Z0-9_]+"> => s;

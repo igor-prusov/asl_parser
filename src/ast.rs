@@ -1,3 +1,8 @@
+pub enum Statement<'a> {
+    Register(Register<'a>),
+    Comment,
+}
+
 pub struct Register<'a> {
     pub bits: u32,
     pub name: &'a str,
