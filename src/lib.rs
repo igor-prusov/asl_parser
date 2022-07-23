@@ -191,52 +191,42 @@ pub struct RegisterDesc {
 
 impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut sizes = Vec::new();
+        let mut names = Vec::new();
+        let mut ranges = Vec::new();
 
         for field in &self.fields {
-            let from = field.from;
-            let to = field.to;
-            let name = &field.name;
-
-            let name_size = format!(" {} ", name).len();
-            let range_size = if from == to {
-                format!(" {} ", from).len()
-            } else {
-                format!(" {}..{} ", to, from).len()
-            };
-
-            sizes.push(max(name_size, range_size));
-        }
-
-        let it = self.fields.iter().zip(&sizes);
-        for (field, size) in it {
-            let s = if field.from == field.to {
-                format!(" {} ", field.from)
+            names.push(format! {" {} ", field.name});
+            ranges.push(if field.from == field.to {
+                format!(" {} ", field.to)
             } else {
                 format!(" {}..{} ", field.to, field.from)
-            };
-            let offset = (size - s.len()) / 2;
+            });
+        }
+
+        let func = |a: &String, b: &String, c: &String, f: &mut fmt::Formatter| -> fmt::Result {
+            let size = max(a.len(), b.len());
+
+            let offset = (size - c.len()) / 2;
             write!(f, "|")?;
             for _ in 0..offset {
                 write!(f, " ")?;
             }
-            write!(f, "{}", s)?;
-            for _ in offset + s.len()..*size {
+            write!(f, "{}", c)?;
+
+            for _ in offset + c.len()..size {
                 write!(f, " ")?;
             }
+
+            Ok(())
+        };
+
+        for x in names.iter().zip(&ranges) {
+            func(x.0, x.1, x.1, f)?;
         }
         writeln!(f, "|")?;
-        let it = self.fields.iter().zip(&sizes);
-        for (field, size) in it {
-            let offset = (size - field.name.len()) / 2;
-            write!(f, "|")?;
-            for _ in 0..offset {
-                write!(f, " ")?;
-            }
-            write!(f, "{}", field.name)?;
-            for _ in offset + field.name.len()..*size {
-                write!(f, " ")?;
-            }
+
+        for x in names.iter().zip(&ranges) {
+            func(x.0, x.1, x.0, f)?;
         }
         writeln!(f, "|")
     }
