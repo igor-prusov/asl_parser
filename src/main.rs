@@ -1,15 +1,34 @@
-use std::{env, fs};
+use std::{
+    env,
+    io::{self, Write},
+};
 
-#[macro_use]
-extern crate lalrpop_util;
+use mra_parser::parse_registers;
 
-lalrpop_mod!(pub registers); // syntesized by LALRPOP
-mod ast;
 
 fn main() {
     let f = env::args().nth(1).expect("No register file specified");
     println!("arg = {}", f);
-    let input = fs::read_to_string(f).expect("Can't open file");
-    let parser = registers::ProgramParser::new();
-    let _program = parser.parse(&input).unwrap();
+
+    let data = parse_registers(&f);
+
+    println!("Enter register names:");
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+
+        let input = input.trim().to_lowercase();
+
+        match data.get(&input) {
+            Some(reg) => println!("Exists {}", reg.name),
+            None => println!("None"),
+        }
+
+        if input.len() == 0 {
+            break;
+        }
+    }
 }

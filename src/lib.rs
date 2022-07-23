@@ -1,5 +1,8 @@
+use crate::ast::Statement;
+use std::{collections::HashMap, fs};
+
 #[cfg(test)]
-use crate::ast::{Bitfield, Range, Register, Statement};
+use crate::ast::{Bitfield, Range, Register};
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -169,4 +172,48 @@ fn program() {
     assert_eq!(prog.len(), 2);
     assert!(matches!(prog[0], Statement::Comment));
     assert!(matches!(&prog[1], Statement::Register(_)));
+}
+
+pub struct BitfieldDesc {
+    pub from: u32,
+    pub to: u32,
+    pub name: String,
+}
+
+pub struct RegisterDesc {
+    pub name: String,
+    pub bits: u32,
+    pub fields: Vec<BitfieldDesc>,
+}
+
+pub fn parse_registers(path: &str) -> HashMap<String, RegisterDesc> {
+    let input = fs::read_to_string(path).expect("Can't open file");
+    let parser = registers::ProgramParser::new();
+    let program = parser.parse(&input).unwrap();
+
+    let mut data = HashMap::new();
+
+    for stmt in program {
+        if let Statement::Register(reg) = stmt {
+            let mut fields = Vec::new();
+            for f in reg.bits_desc {
+                fields.push(BitfieldDesc {
+                    from: f.from,
+                    to: f.to,
+                    name: f.name.to_string(),
+                })
+            }
+
+            data.insert(
+                reg.name.to_lowercase(),
+                RegisterDesc {
+                    name: reg.name.to_string(),
+                    bits: reg.bits,
+                    fields: fields,
+                },
+            );
+        }
+    }
+
+    data
 }
