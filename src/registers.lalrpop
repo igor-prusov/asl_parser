@@ -27,15 +27,25 @@ pub Register: Register<'input> = {
         bits: number,
         name: name,
         bits_desc: r,
+    },
+
+    "array [" Num ".." Num "] of __register" <number:Num> <r:RegisterBits> <name:String> ";" => Register {
+        bits: number,
+        name: name,
+        bits_desc: r,
     }
 }
 
 RegisterBits: Vec<Bitfield<'input>> = "{" <v:Comma<Bitfield>> "}" => v;
 
 Bitfield: Bitfield<'input> = {
-    <to:Num> ":" <from:Num> <name:String> => Bitfield {<>}
+    <to:Num> ":" <from:Num> <name:String?> => Bitfield {
+        to: to,
+        from: from,
+        name: name.unwrap_or(""),
+    }
 }
 
 Num: u32 = <s:r"[0-9]+"> => u32::from_str(s).unwrap();
 
-String: &'input str = <s:r"[a-zA-Z][a-zA-Z0-9_]+"> => s;
+String: &'input str = <s:r"[a-zA-Z][a-zA-Z0-9_]*"> => s;

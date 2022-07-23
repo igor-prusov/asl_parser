@@ -1,4 +1,5 @@
 use crate::ast::{Bitfield, Register, Statement};
+use std::env;
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -58,11 +59,50 @@ fn register() {
         );
     });
 
+    let input = "__register 32 { 31:31, 15:0 SomeBits } ANOTHER_REG;";
+    check_register(input, |reg| {
+        assert_eq!(reg.name, "ANOTHER_REG");
+        assert_eq!(reg.bits, 32);
+        assert_eq!(reg.bits_desc.len(), 2);
+        assert_eq!(
+            reg.bits_desc[0],
+            Bitfield {
+                to: 31,
+                from: 31,
+                name: "",
+            }
+        );
+        assert_eq!(
+            reg.bits_desc[1],
+            Bitfield {
+                to: 15,
+                from: 0,
+                name: "SomeBits",
+            }
+        );
+    });
+
     let input = "__register 32 {  } EMPTY;";
     check_register(input, |reg| {
         assert_eq!(reg.name, "EMPTY");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 0);
+    });
+
+    let input = "__register 32 { 1:1 A } REG;";
+    check_register(input, |reg| {
+        assert_eq!(reg.name, "REG");
+        assert_eq!(reg.bits, 32);
+        assert_eq!(reg.bits_desc.len(), 1);
+        assert_eq!(
+            reg.bits_desc[0],
+            Bitfield {
+                to: 1,
+                from: 1,
+                name: "A"
+            }
+        );
+
     });
 }
 
@@ -120,5 +160,11 @@ fn program() {
 
 #[cfg(not(test))]
 fn main() {
-    println!("Hello, world!");
+    use std::{env::args, fs};
+
+    let f = env::args().nth(1).expect("No register file specified");
+    println!("arg = {}", f);
+    let input = fs::read_to_string(f).expect("Can't open file");
+    let parser = registers::ProgramParser::new();
+    let program = parser.parse(&input).unwrap();
 }
