@@ -1,4 +1,4 @@
-use crate::ast::{Bitfield, Register, Statement};
+use crate::ast::{Bitfield, Register, Statement, Range};
 use std::env;
 
 #[macro_use]
@@ -34,6 +34,7 @@ fn register() {
     check_register(input, |reg| {
         assert_eq!(reg.name, "SOME_REG");
         assert_eq!(reg.bits, 32);
+        assert!(reg.array.is_none());
     });
 
     let input = "__register 32 { 31:31 OneBit, 15:0 SomeBits } ANOTHER_REG;";
@@ -41,6 +42,7 @@ fn register() {
         assert_eq!(reg.name, "ANOTHER_REG");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 2);
+        assert!(reg.array.is_none());
         assert_eq!(
             reg.bits_desc[0],
             Bitfield {
@@ -64,6 +66,7 @@ fn register() {
         assert_eq!(reg.name, "ANOTHER_REG");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 2);
+        assert!(reg.array.is_none());
         assert_eq!(
             reg.bits_desc[0],
             Bitfield {
@@ -87,6 +90,7 @@ fn register() {
         assert_eq!(reg.name, "EMPTY");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 0);
+        assert!(reg.array.is_none());
     });
 
     let input = "__register 32 { 1:1 A } REG;";
@@ -94,6 +98,7 @@ fn register() {
         assert_eq!(reg.name, "REG");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 1);
+        assert!(reg.array.is_none());
         assert_eq!(
             reg.bits_desc[0],
             Bitfield {
@@ -102,6 +107,18 @@ fn register() {
                 name: "A"
             }
         );
+
+    });
+
+    let input = "array [0..3] of __register 32 {  } ARRAY_REG;";
+    check_register(input, |reg| {
+        assert_eq!(reg.name, "ARRAY_REG");
+        assert_eq!(reg.bits, 32);
+        assert_eq!(reg.bits_desc.len(), 0);
+        assert_eq!(reg.array.unwrap(), Range {
+            from: 0,
+            to: 3,
+        });
 
     });
 }

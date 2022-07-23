@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::ast::{Statement, Register, Bitfield};
+use crate::ast::{Statement, Register, Bitfield, Range};
 
 grammar;
 
@@ -27,12 +27,17 @@ pub Register: Register<'input> = {
         bits: number,
         name: name,
         bits_desc: r,
+        array: None,
     },
 
-    "array [" Num ".." Num "] of __register" <number:Num> <r:RegisterBits> <name:String> ";" => Register {
+    "array [" <from:Num> ".." <to:Num> "] of __register" <number:Num> <r:RegisterBits> <name:String> ";" => Register {
         bits: number,
         name: name,
         bits_desc: r,
+        array: Some(Range {
+            from: from,
+            to: to,
+        }),
     }
 }
 
