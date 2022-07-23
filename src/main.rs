@@ -1,5 +1,8 @@
-use crate::ast::{Bitfield, Register, Statement, Range};
-use std::env;
+#[cfg(test)]
+use crate::ast::{Bitfield, Range, Register, Statement};
+
+#[cfg(not(test))]
+use std::{env, fs};
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -107,7 +110,6 @@ fn register() {
                 name: "A"
             }
         );
-
     });
 
     let input = "array [0..3] of __register 32 {  } ARRAY_REG;";
@@ -115,11 +117,7 @@ fn register() {
         assert_eq!(reg.name, "ARRAY_REG");
         assert_eq!(reg.bits, 32);
         assert_eq!(reg.bits_desc.len(), 0);
-        assert_eq!(reg.array.unwrap(), Range {
-            from: 0,
-            to: 3,
-        });
-
+        assert_eq!(reg.array.unwrap(), Range { from: 0, to: 3 });
     });
 }
 
@@ -177,8 +175,6 @@ fn program() {
 
 #[cfg(not(test))]
 fn main() {
-    use std::{env::args, fs};
-
     let f = env::args().nth(1).expect("No register file specified");
     println!("arg = {}", f);
     let input = fs::read_to_string(f).expect("Can't open file");
