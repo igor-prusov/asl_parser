@@ -21,11 +21,7 @@ fn check_register(input: &str, reference: Register) {
 #[cfg(test)]
 fn check_comment(input: &str) {
     let stmt = registers::StatementParser::new().parse(input).unwrap();
-
-    if let Statement::Comment = stmt {
-    } else {
-        panic!("Statement is not a Register")
-    }
+    assert!(matches!(stmt, Statement::Comment));
 }
 
 #[test]
