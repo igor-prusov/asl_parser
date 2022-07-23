@@ -1,5 +1,6 @@
 use crate::ast::Statement;
-use std::{collections::HashMap, fs};
+use core::fmt;
+use std::{cmp::max, collections::HashMap, fs};
 
 #[cfg(test)]
 use crate::ast::{Bitfield, Range, Register};
@@ -174,16 +175,71 @@ fn program() {
     assert!(matches!(&prog[1], Statement::Register(_)));
 }
 
+#[derive(Debug)]
 pub struct BitfieldDesc {
     pub from: u32,
     pub to: u32,
     pub name: String,
 }
 
+#[derive(Debug)]
 pub struct RegisterDesc {
     pub name: String,
     pub bits: u32,
     pub fields: Vec<BitfieldDesc>,
+}
+
+impl fmt::Display for RegisterDesc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut sizes = Vec::new();
+
+        for field in &self.fields {
+            let from = field.from;
+            let to = field.to;
+            let name = &field.name;
+
+            let name_size = format!(" {} ", name).len();
+            let range_size = if from == to {
+                format!(" {} ", from).len()
+            } else {
+                format!(" {}..{} ", to, from).len()
+            };
+
+            sizes.push(max(name_size, range_size));
+        }
+
+        let it = self.fields.iter().zip(&sizes);
+        for (field, size) in it {
+            let s = if field.from == field.to {
+                format!(" {} ", field.from)
+            } else {
+                format!(" {}..{} ", field.to, field.from)
+            };
+            let offset = (size - s.len()) / 2;
+            write!(f, "|")?;
+            for _ in 0..offset {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", s)?;
+            for _ in offset + s.len()..*size {
+                write!(f, " ")?;
+            }
+        }
+        writeln!(f, "|")?;
+        let it = self.fields.iter().zip(&sizes);
+        for (field, size) in it {
+            let offset = (size - field.name.len()) / 2;
+            write!(f, "|")?;
+            for _ in 0..offset {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", field.name)?;
+            for _ in offset + field.name.len()..*size {
+                write!(f, " ")?;
+            }
+        }
+        writeln!(f, "|")
+    }
 }
 
 pub fn parse_registers(path: &str) -> HashMap<String, RegisterDesc> {
@@ -209,7 +265,7 @@ pub fn parse_registers(path: &str) -> HashMap<String, RegisterDesc> {
                 RegisterDesc {
                     name: reg.name.to_string(),
                     bits: reg.bits,
-                    fields: fields,
+                    fields,
                 },
             );
         }

@@ -5,7 +5,6 @@ use std::{
 
 use mra_parser::parse_registers;
 
-
 fn main() {
     let f = env::args().nth(1).expect("No register file specified");
     println!("arg = {}", f);
@@ -23,8 +22,8 @@ fn main() {
         let input = input.trim().to_lowercase();
 
         match data.get(&input) {
-            Some(reg) => println!("Exists {}", reg.name),
-            None => println!("None"),
+            Some(reg) => println!("{}", reg),
+            None => println!(""),
         }
 
         if input.len() == 0 {
