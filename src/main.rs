@@ -11,11 +11,11 @@ lalrpop_mod!(pub registers); // syntesized by LALRPOP
 mod ast;
 
 #[cfg(test)]
-fn check_register(input: &str, f: fn(Register)) {
+fn check_register(input: &str, reference: Register) {
     let stmt = registers::StatementParser::new().parse(input).unwrap();
 
     if let Statement::Register(reg) = stmt {
-        f(reg);
+        assert_eq!(reg, reference);
     } else {
         panic!("Statement is not a Register")
     }
@@ -34,91 +34,96 @@ fn check_comment(input: &str) {
 #[test]
 fn register() {
     let input = "__register 32 {} SOME_REG;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "SOME_REG");
-        assert_eq!(reg.bits, 32);
-        assert!(reg.array.is_none());
-    });
+    check_register(
+        input,
+        Register {
+            name: "SOME_REG",
+            bits: 32,
+            array: None,
+            bits_desc: vec![],
+        },
+    );
 
     let input = "__register 32 { 31:31 OneBit, 15:0 SomeBits } ANOTHER_REG;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "ANOTHER_REG");
-        assert_eq!(reg.bits, 32);
-        assert_eq!(reg.bits_desc.len(), 2);
-        assert!(reg.array.is_none());
-        assert_eq!(
-            reg.bits_desc[0],
-            Bitfield {
-                to: 31,
-                from: 31,
-                name: "OneBit",
-            }
-        );
-        assert_eq!(
-            reg.bits_desc[1],
-            Bitfield {
-                to: 15,
-                from: 0,
-                name: "SomeBits",
-            }
-        );
-    });
+    check_register(
+        input,
+        Register {
+            name: "ANOTHER_REG",
+            bits: 32,
+            array: None,
+            bits_desc: vec![
+                Bitfield {
+                    to: 31,
+                    from: 31,
+                    name: "OneBit",
+                },
+                Bitfield {
+                    to: 15,
+                    from: 0,
+                    name: "SomeBits",
+                },
+            ],
+        },
+    );
 
     let input = "__register 32 { 31:31, 15:0 SomeBits } ANOTHER_REG;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "ANOTHER_REG");
-        assert_eq!(reg.bits, 32);
-        assert_eq!(reg.bits_desc.len(), 2);
-        assert!(reg.array.is_none());
-        assert_eq!(
-            reg.bits_desc[0],
-            Bitfield {
-                to: 31,
-                from: 31,
-                name: "",
-            }
-        );
-        assert_eq!(
-            reg.bits_desc[1],
-            Bitfield {
-                to: 15,
-                from: 0,
-                name: "SomeBits",
-            }
-        );
-    });
+    check_register(
+        input,
+        Register {
+            name: "ANOTHER_REG",
+            bits: 32,
+            array: None,
+            bits_desc: vec![
+                Bitfield {
+                    to: 31,
+                    from: 31,
+                    name: "",
+                },
+                Bitfield {
+                    to: 15,
+                    from: 0,
+                    name: "SomeBits",
+                },
+            ],
+        },
+    );
 
     let input = "__register 32 {  } EMPTY;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "EMPTY");
-        assert_eq!(reg.bits, 32);
-        assert_eq!(reg.bits_desc.len(), 0);
-        assert!(reg.array.is_none());
-    });
+    check_register(
+        input,
+        Register {
+            name: "EMPTY",
+            bits: 32,
+            array: None,
+            bits_desc: vec![],
+        },
+    );
 
     let input = "__register 32 { 1:1 A } REG;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "REG");
-        assert_eq!(reg.bits, 32);
-        assert_eq!(reg.bits_desc.len(), 1);
-        assert!(reg.array.is_none());
-        assert_eq!(
-            reg.bits_desc[0],
-            Bitfield {
+    check_register(
+        input,
+        Register {
+            name: "REG",
+            bits: 32,
+            array: None,
+            bits_desc: vec![Bitfield {
                 to: 1,
                 from: 1,
-                name: "A"
-            }
-        );
-    });
+                name: "A",
+            }],
+        },
+    );
 
     let input = "array [0..3] of __register 32 {  } ARRAY_REG;";
-    check_register(input, |reg| {
-        assert_eq!(reg.name, "ARRAY_REG");
-        assert_eq!(reg.bits, 32);
-        assert_eq!(reg.bits_desc.len(), 0);
-        assert_eq!(reg.array.unwrap(), Range { from: 0, to: 3 });
-    });
+    check_register(
+        input,
+        Register {
+            name: "ARRAY_REG",
+            bits: 32,
+            bits_desc: vec![],
+            array: Some(Range { from: 0, to: 3 }),
+        },
+    );
 }
 
 #[test]

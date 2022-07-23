@@ -3,6 +3,7 @@ pub enum Statement<'a> {
     Comment,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Register<'a> {
     pub bits: u32,
     pub name: &'a str,
