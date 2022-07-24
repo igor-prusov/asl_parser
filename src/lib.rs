@@ -1,6 +1,6 @@
 use crate::ast::Statement;
 use core::fmt;
-use std::{cmp::max, collections::HashMap, fs};
+use std::{cmp::max, collections::BTreeMap, fs};
 
 #[cfg(test)]
 use crate::ast::{Bitfield, Range, Register};
@@ -198,6 +198,8 @@ impl fmt::Display for RegisterDesc {
             Bits,
         }
 
+        writeln!(f, "{}", self.name)?;
+
         for field in &self.fields {
             names.push(format! {" {} ", field.name});
             ranges.push(if field.from == field.to {
@@ -249,12 +251,12 @@ impl fmt::Display for RegisterDesc {
     }
 }
 
-pub fn parse_registers(path: &str) -> HashMap<String, RegisterDesc> {
+pub fn parse_registers(path: &str) -> BTreeMap<String, RegisterDesc> {
     let input = fs::read_to_string(path).expect("Can't open file");
     let parser = registers::ProgramParser::new();
     let program = parser.parse(&input).unwrap();
 
-    let mut data = HashMap::new();
+    let mut data = BTreeMap::new();
 
     for stmt in program {
         if let Statement::Register(reg) = stmt {
