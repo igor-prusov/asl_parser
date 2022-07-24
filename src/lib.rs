@@ -259,11 +259,34 @@ pub fn parse_registers(path: &str) -> HashMap<String, RegisterDesc> {
     for stmt in program {
         if let Statement::Register(reg) = stmt {
             let mut fields = Vec::new();
+            let mut expected = Some(reg.bits - 1);
+
+            /* Iterate over parsed Bitfields and add padding with anonymous BitfieldDescs */
             for f in reg.bits_desc {
+                /* Add padding before bitfield */
+                expected.filter(|x| *x != f.to).map(|x| {
+                    fields.push(BitfieldDesc {
+                        from: f.to + 1,
+                        to: x,
+                        name: String::new(),
+                    })
+                });
+
                 fields.push(BitfieldDesc {
                     from: f.from,
                     to: f.to,
                     name: f.name.to_string(),
+                });
+
+                expected = f.from.checked_sub(1);
+            }
+
+            /* Add padding after bitfield */
+            if let Some(x) = expected {
+                fields.push(BitfieldDesc {
+                    from: 0,
+                    to: x,
+                    name: String::new(),
                 })
             }
 
