@@ -203,32 +203,58 @@ impl fmt::Display for RegisterDesc {
             });
         }
 
-        let func = |a: &String, b: &String, c: &String, f: &mut fmt::Formatter| -> fmt::Result {
-            let size = max(a.len(), b.len());
+        let display_row =
+            |a: &String, b: &String, c: &String, f: &mut fmt::Formatter| -> fmt::Result {
+                let size = max(a.len(), b.len());
 
-            let offset = (size - c.len()) / 2;
-            write!(f, "|")?;
-            for _ in 0..offset {
-                write!(f, " ")?;
-            }
-            write!(f, "{}", c)?;
+                let offset = (size - c.len()) / 2;
+                write!(f, "|")?;
+                for _ in 0..offset {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", c)?;
 
-            for _ in offset + c.len()..size {
-                write!(f, " ")?;
-            }
+                for _ in offset + c.len()..size {
+                    write!(f, " ")?;
+                }
 
-            Ok(())
-        };
+                Ok(())
+            };
+
+        let display_line = 
+            |a: &String, b: &String, f: &mut fmt::Formatter| -> fmt::Result {
+
+                let size = max(a.len(), b.len());
+                write!(f, "+")?;
+                for _ in 0..size {
+                    write!(f, "-")?;
+                }
+                Ok(())
+            };
 
         for x in names.iter().zip(&ranges) {
-            func(x.0, x.1, x.1, f)?;
+            display_line(x.0, x.1, f)?;
+        }
+        writeln!(f, "+")?;
+
+        for x in names.iter().zip(&ranges) {
+            display_row(x.0, x.1, x.1, f)?;
         }
         writeln!(f, "|")?;
 
         for x in names.iter().zip(&ranges) {
-            func(x.0, x.1, x.0, f)?;
+            display_line(x.0, x.1, f)?;
         }
-        writeln!(f, "|")
+        writeln!(f, "+")?;
+
+        for x in names.iter().zip(&ranges) {
+            display_row(x.0, x.1, x.0, f)?;
+        }
+        writeln!(f, "|")?;
+        for x in names.iter().zip(&ranges) {
+            display_line(x.0, x.1, f)?;
+        }
+        writeln!(f, "+")
     }
 }
 
