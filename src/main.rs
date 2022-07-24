@@ -1,15 +1,28 @@
 use std::{
-    env,
-    io::{self, Write},
+    fs::File,
+    io::{self, Read, Write},
 };
 
 use mra_parser::{parse_registers, RegisterDesc};
 
-fn main() {
-    let f = env::args().nth(1).expect("No register file specified");
-    println!("arg = {}", f);
+fn init_state() -> File {
+    let mut regs_asl_path = dirs::data_dir().unwrap();
+    regs_asl_path.push("mra_parser");
+    regs_asl_path.push("regs.asl");
 
-    let data = parse_registers(&f);
+    match File::open(&regs_asl_path) {
+        Ok(x) => x,
+        Err(e) => panic!("Can't open {}: {}", regs_asl_path.display(), e),
+    }
+}
+
+fn main() {
+    let mut file = init_state();
+    let mut input = String::new();
+
+    file.read_to_string(&mut input).unwrap();
+
+    let data = parse_registers(&input);
 
     println!("Enter register names:");
     loop {
