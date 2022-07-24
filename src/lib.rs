@@ -193,6 +193,10 @@ impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut names = Vec::new();
         let mut ranges = Vec::new();
+        enum Row {
+            Names,
+            Bits,
+        }
 
         for field in &self.fields {
             names.push(format! {" {} ", field.name});
@@ -203,9 +207,13 @@ impl fmt::Display for RegisterDesc {
             });
         }
 
-        let display_row =
-            |a: &String, b: &String, c: &String, f: &mut fmt::Formatter| -> fmt::Result {
+        let print_row = |f: &mut fmt::Formatter, index: Row| -> fmt::Result {
+            for (a, b) in names.iter().zip(&ranges) {
                 let size = max(a.len(), b.len());
+                let c = match &index {
+                    Row::Names => a,
+                    Row::Bits => b,
+                };
 
                 let offset = (size - c.len()) / 2;
                 write!(f, "|")?;
@@ -217,44 +225,27 @@ impl fmt::Display for RegisterDesc {
                 for _ in offset + c.len()..size {
                     write!(f, " ")?;
                 }
+            }
 
-                Ok(())
-            };
+            writeln!(f, "|")
+        };
 
-        let display_line = 
-            |a: &String, b: &String, f: &mut fmt::Formatter| -> fmt::Result {
-
+        let print_line = |f: &mut fmt::Formatter| -> fmt::Result {
+            for (a, b) in names.iter().zip(&ranges) {
                 let size = max(a.len(), b.len());
                 write!(f, "+")?;
                 for _ in 0..size {
                     write!(f, "-")?;
                 }
-                Ok(())
-            };
+            }
+            writeln!(f, "+")
+        };
 
-        for x in names.iter().zip(&ranges) {
-            display_line(x.0, x.1, f)?;
-        }
-        writeln!(f, "+")?;
-
-        for x in names.iter().zip(&ranges) {
-            display_row(x.0, x.1, x.1, f)?;
-        }
-        writeln!(f, "|")?;
-
-        for x in names.iter().zip(&ranges) {
-            display_line(x.0, x.1, f)?;
-        }
-        writeln!(f, "+")?;
-
-        for x in names.iter().zip(&ranges) {
-            display_row(x.0, x.1, x.0, f)?;
-        }
-        writeln!(f, "|")?;
-        for x in names.iter().zip(&ranges) {
-            display_line(x.0, x.1, f)?;
-        }
-        writeln!(f, "+")
+        print_line(f)?;
+        print_row(f, Row::Bits)?;
+        print_line(f)?;
+        print_row(f, Row::Names)?;
+        print_line(f)
     }
 }
 
