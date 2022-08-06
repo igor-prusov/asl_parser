@@ -51,6 +51,26 @@ async fn download_file(from: String, to: PathBuf) {
     println!("untar {} status: {}", to.display(), output.status);
 }
 
+fn clone_repo(url: &str, dst: &PathBuf) {
+    let output = Command::new("git")
+        .current_dir(dst)
+        .arg("clone")
+        .arg(url)
+        .output()
+        .unwrap();
+    println!("git clone status: {}", output.status);
+    io::stdout().write_all(&output.stdout).unwrap();
+    io::stderr().write_all(&output.stderr).unwrap();
+}
+
+fn run_make(dir: &PathBuf, target: &str) {
+    Command::new("make")
+        .current_dir(dir)
+        .arg(target)
+        .output()
+        .unwrap();
+}
+
 async fn prepare() {
     let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
 
@@ -60,32 +80,21 @@ async fn prepare() {
 
     std::fs::create_dir_all(&tmp_dir).unwrap();
 
-    let output = Command::new("git")
-        .current_dir(&tmp_dir)
-        .arg("clone")
-        .arg("https://github.com/alastairreid/mra_tools.git")
-        .output()
-        .unwrap();
-
-    println!("git clone status: {}", output.status);
-    io::stdout().write_all(&output.stdout).unwrap();
-    io::stderr().write_all(&output.stderr).unwrap();
+    clone_repo("https://github.com/alastairreid/mra_tools.git", &tmp_dir);
 
     std::fs::create_dir_all(&spec_dir).unwrap();
 
-    let v = vec![
+    let spec_files = vec![
         "SysReg_xml_v86A-2019-12.tar.gz",
         "A64_ISA_xml_v86A-2019-12.tar.gz",
         "AArch32_ISA_xml_v86A-2019-12.tar.gz",
     ];
 
-    let build_url_pat = |x: &&str| {
+    let data = spec_files.iter().map(|x| {
         let url = [url_prefix, x].join("");
         let path: PathBuf = [&spec_dir, &PathBuf::from(x)].iter().collect();
         (url, path)
-    };
-
-    let data = v.iter().map(build_url_pat);
+    });
 
     let mut promises = Vec::new();
 
@@ -96,11 +105,7 @@ async fn prepare() {
 
     join_all(promises).await;
 
-    Command::new("make")
-        .current_dir(&repo_dir)
-        .arg("all")
-        .output()
-        .unwrap();
+    run_make(&repo_dir, "all");
 
     let regs_asl: PathBuf = [
         &repo_dir,
