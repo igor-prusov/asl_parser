@@ -8,6 +8,7 @@ use std::{
 };
 
 use mra_parser::{parse_registers, RegisterDesc};
+use tempdir::TempDir;
 
 fn regs_asl_path() -> PathBuf {
     let mut path = dirs::data_dir().unwrap();
@@ -27,7 +28,10 @@ fn init_state() -> File {
 
 async fn prepare() {
     let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
-    let tmp_dir = String::from("/Users/igor/tmp/aml/");
+
+    let tmp_dir = TempDir::new("regs_asl_parser").unwrap().into_path();
+    let repo_dir: PathBuf = [tmp_dir.to_str().unwrap(), "mra_tools"].iter().collect();
+    let spec_dir: PathBuf = [repo_dir.to_str().unwrap(), "v8.6"].iter().collect();
 
     std::fs::create_dir_all(&tmp_dir).unwrap();
 
@@ -42,11 +46,6 @@ async fn prepare() {
     io::stdout().write_all(&output.stdout).unwrap();
     io::stderr().write_all(&output.stderr).unwrap();
 
-    let mut repo_dir = tmp_dir.clone();
-    repo_dir.push_str("mra_tools/");
-
-    let mut spec_dir = repo_dir.clone();
-    spec_dir.push_str("v8.6/");
     std::fs::create_dir_all(&spec_dir).unwrap();
 
     let v = vec![
@@ -57,22 +56,11 @@ async fn prepare() {
 
     for entry in &v {
         println!("{} downloading...", entry);
-        let mut url = String::from(url_prefix);
-        url.push_str(entry);
 
-        let mut path = String::from(&spec_dir);
-        path.push_str(entry);
+        let url = [url_prefix, entry].join("");
+        let path: PathBuf = [&spec_dir, &PathBuf::from(entry)].iter().collect();
 
-        let response = reqwest::get(url).await.unwrap();
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)
-            .unwrap();
-
-        let mut content = Cursor::new(response.bytes().await.unwrap());
-        std::io::copy(&mut content, &mut file).unwrap();
+        download_file(url.as_str(), &path).await;
         println!("{} done ", entry);
     }
 
@@ -92,11 +80,28 @@ async fn prepare() {
         .output()
         .unwrap();
 
-    let mut regs_asl = repo_dir.clone();
-    regs_asl.push_str("arch/");
-    regs_asl.push_str("regs.asl");
-    println!("copy: {} -> {}\n", regs_asl, regs_asl_path().display());
+    let regs_asl: PathBuf = [
+        &repo_dir,
+        &PathBuf::from("arch"),
+        &PathBuf::from("regs.asl"),
+    ]
+    .iter()
+    .collect();
+
     fs::copy(regs_asl, regs_asl_path()).unwrap();
+}
+
+async fn download_file(from: &str, to: &PathBuf) {
+    let response = reqwest::get(from).await.unwrap();
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(to)
+        .unwrap();
+
+    let mut content = Cursor::new(response.bytes().await.unwrap());
+    std::io::copy(&mut content, &mut file).unwrap();
 }
 
 #[tokio::main]
