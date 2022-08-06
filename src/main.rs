@@ -7,6 +7,7 @@ use std::{
     process::Command,
 };
 
+use futures::future::join_all;
 use mra_parser::{parse_registers, RegisterDesc};
 use tempdir::TempDir;
 
@@ -24,6 +25,30 @@ fn init_state() -> File {
         Ok(x) => x,
         Err(e) => panic!("Can't open {}: {}", path.display(), e),
     }
+}
+
+async fn download_file(from: String, to: PathBuf) {
+    println!("Downloading: {}", from);
+    let response = reqwest::get(&from).await.unwrap();
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&to)
+        .unwrap();
+
+    let mut content = Cursor::new(response.bytes().await.unwrap());
+    std::io::copy(&mut content, &mut file).unwrap();
+    println!("Done: {}", from);
+
+    let parent = to.parent().unwrap();
+    let output = Command::new("/usr/bin/tar")
+        .current_dir(parent)
+        .arg("zxf")
+        .arg(&to)
+        .output()
+        .unwrap();
+    println!("untar {} status: {}", to.display(), output.status);
 }
 
 async fn prepare() {
@@ -54,25 +79,22 @@ async fn prepare() {
         "AArch32_ISA_xml_v86A-2019-12.tar.gz",
     ];
 
-    for entry in &v {
-        println!("{} downloading...", entry);
+    let build_url_pat = |x: &&str| {
+        let url = [url_prefix, x].join("");
+        let path: PathBuf = [&spec_dir, &PathBuf::from(x)].iter().collect();
+        (url, path)
+    };
 
-        let url = [url_prefix, entry].join("");
-        let path: PathBuf = [&spec_dir, &PathBuf::from(entry)].iter().collect();
+    let data = v.iter().map(build_url_pat);
 
-        download_file(url.as_str(), &path).await;
-        println!("{} done ", entry);
+    let mut promises = Vec::new();
+
+    for (url, path) in data {
+        let pr = download_file(url, path);
+        promises.push(pr);
     }
 
-    for name in v {
-        let output = Command::new("/usr/bin/tar")
-            .current_dir(&spec_dir)
-            .arg("zxf")
-            .arg(name)
-            .output()
-            .unwrap();
-        println!("untar {} status: {}", name, output.status);
-    }
+    join_all(promises).await;
 
     Command::new("make")
         .current_dir(&repo_dir)
@@ -89,19 +111,6 @@ async fn prepare() {
     .collect();
 
     fs::copy(regs_asl, regs_asl_path()).unwrap();
-}
-
-async fn download_file(from: &str, to: &PathBuf) {
-    let response = reqwest::get(from).await.unwrap();
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(to)
-        .unwrap();
-
-    let mut content = Cursor::new(response.bytes().await.unwrap());
-    std::io::copy(&mut content, &mut file).unwrap();
 }
 
 #[tokio::main]
