@@ -3,7 +3,7 @@ use std::{
     fs,
     fs::{File, OpenOptions},
     io::{self, Cursor, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -12,10 +12,9 @@ use mra_parser::{parse_registers, RegisterDesc};
 use tempdir::TempDir;
 
 fn regs_asl_path() -> PathBuf {
-    let mut path = dirs::data_dir().unwrap();
-    path.push("mra_parser");
-    path.push("regs.asl");
-    path
+    let path = dirs::data_dir().unwrap();
+
+    path.join("mra_parser").join("regs.asl")
 }
 
 fn init_state() -> File {
@@ -51,7 +50,7 @@ async fn download_file(from: String, to: PathBuf) {
     println!("untar {} status: {}", to.display(), output.status);
 }
 
-fn clone_repo(url: &str, dst: &PathBuf) {
+fn clone_repo(url: &str, dst: &Path) {
     let output = Command::new("git")
         .current_dir(dst)
         .arg("clone")
@@ -63,10 +62,10 @@ fn clone_repo(url: &str, dst: &PathBuf) {
     io::stderr().write_all(&output.stderr).unwrap();
 }
 
-async fn download_files(url_prefix: &str, to: &PathBuf, files: &Vec<&str>) {
+async fn download_files(url_prefix: &str, to: &Path, files: &Vec<&str>) {
     let data = files.iter().map(|x| {
         let url = [url_prefix, x].join("");
-        let path: PathBuf = [&to, &PathBuf::from(x)].iter().collect();
+        let path = to.join(x);
         (url, path)
     });
 
@@ -79,7 +78,7 @@ async fn download_files(url_prefix: &str, to: &PathBuf, files: &Vec<&str>) {
     join_all(promises).await;
 }
 
-fn run_make(dir: &PathBuf, target: &str) {
+fn run_make(dir: &Path, target: &str) {
     Command::new("make")
         .current_dir(dir)
         .arg(target)
@@ -89,12 +88,15 @@ fn run_make(dir: &PathBuf, target: &str) {
 
 async fn prepare() {
     let tmp_dir = TempDir::new("regs_asl_parser").unwrap().into_path();
-    let repo_dir: PathBuf = [tmp_dir.to_str().unwrap(), "mra_tools"].iter().collect();
-    let spec_dir: PathBuf = [repo_dir.to_str().unwrap(), "v8.6"].iter().collect();
+    let repo_dir = tmp_dir.join("mra_tools");
+    let spec_dir = repo_dir.join("v8.6");
 
     std::fs::create_dir_all(&tmp_dir).unwrap();
 
-    clone_repo("https://github.com/alastairreid/mra_tools.git", &tmp_dir);
+    clone_repo(
+        "https://github.com/alastairreid/mra_tools.git",
+        tmp_dir.as_path(),
+    );
 
     std::fs::create_dir_all(&spec_dir).unwrap();
 
@@ -109,9 +111,7 @@ async fn prepare() {
 
     run_make(&repo_dir, "all");
 
-    let regs_asl: PathBuf = [repo_dir.to_str().unwrap(), "arch", "regs.asl"]
-        .iter()
-        .collect();
+    let regs_asl = repo_dir.join("arch").join("regs.asl");
 
     fs::copy(regs_asl, regs_asl_path()).unwrap();
 }
