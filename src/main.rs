@@ -63,6 +63,22 @@ fn clone_repo(url: &str, dst: &PathBuf) {
     io::stderr().write_all(&output.stderr).unwrap();
 }
 
+async fn download_files(url_prefix: &str, to: &PathBuf, files: &Vec<&str>) {
+    let data = files.iter().map(|x| {
+        let url = [url_prefix, x].join("");
+        let path: PathBuf = [&to, &PathBuf::from(x)].iter().collect();
+        (url, path)
+    });
+
+    let mut promises = Vec::new();
+
+    for (url, path) in data {
+        promises.push(download_file(url, path));
+    }
+
+    join_all(promises).await;
+}
+
 fn run_make(dir: &PathBuf, target: &str) {
     Command::new("make")
         .current_dir(dir)
@@ -72,8 +88,6 @@ fn run_make(dir: &PathBuf, target: &str) {
 }
 
 async fn prepare() {
-    let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
-
     let tmp_dir = TempDir::new("regs_asl_parser").unwrap().into_path();
     let repo_dir: PathBuf = [tmp_dir.to_str().unwrap(), "mra_tools"].iter().collect();
     let spec_dir: PathBuf = [repo_dir.to_str().unwrap(), "v8.6"].iter().collect();
@@ -90,30 +104,14 @@ async fn prepare() {
         "AArch32_ISA_xml_v86A-2019-12.tar.gz",
     ];
 
-    let data = spec_files.iter().map(|x| {
-        let url = [url_prefix, x].join("");
-        let path: PathBuf = [&spec_dir, &PathBuf::from(x)].iter().collect();
-        (url, path)
-    });
-
-    let mut promises = Vec::new();
-
-    for (url, path) in data {
-        let pr = download_file(url, path);
-        promises.push(pr);
-    }
-
-    join_all(promises).await;
+    let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
+    download_files(url_prefix, &spec_dir, &spec_files).await;
 
     run_make(&repo_dir, "all");
 
-    let regs_asl: PathBuf = [
-        &repo_dir,
-        &PathBuf::from("arch"),
-        &PathBuf::from("regs.asl"),
-    ]
-    .iter()
-    .collect();
+    let regs_asl: PathBuf = [repo_dir.to_str().unwrap(), "arch", "regs.asl"]
+        .iter()
+        .collect();
 
     fs::copy(regs_asl, regs_asl_path()).unwrap();
 }
