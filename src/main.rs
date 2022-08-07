@@ -66,7 +66,7 @@ fn clone_repo(url: &str, dst: &Path) -> io::Result<()> {
     Ok(())
 }
 
-async fn download_files(url_prefix: &str, to: &Path, files: &Vec<&str>) -> Result<()> {
+async fn download_files(url_prefix: &str, to: &Path, files: &[&str]) -> Result<()> {
     let data = files.iter().map(|x| {
         let url = [url_prefix, x].join("");
         let path = to.join(x);
@@ -130,7 +130,7 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
         io::stdin().read_line(&mut input)?;
 
         let input = input.trim().to_lowercase();
-        if input.len() == 0 {
+        if input.is_empty() {
             break;
         }
 
@@ -172,7 +172,7 @@ async fn main() {
     let args: Vec<_> = args().collect();
     if args.len() > 1 && args[1] == "init" {
         if let Err(e) = prepare().await {
-            panic!("Can't initialize regs.asl: {}", e.to_string());
+            panic!("Can't initialize regs.asl: {}", e);
         }
     }
 

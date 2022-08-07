@@ -265,13 +265,13 @@ pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
             /* Iterate over parsed Bitfields and add padding with anonymous BitfieldDescs */
             for f in reg.bits_desc {
                 /* Add padding before bitfield */
-                expected.filter(|x| *x != f.to).map(|x| {
+                if let Some(x) = expected.filter(|x| *x != f.to) {
                     fields.push(BitfieldDesc {
                         from: f.to + 1,
                         to: x,
                         name: String::new(),
                     })
-                });
+                }
 
                 fields.push(BitfieldDesc {
                     from: f.from,
