@@ -17,7 +17,11 @@ type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 fn regs_asl_path() -> PathBuf {
     let path = dirs::data_dir().expect("Can't get user data directory");
 
-    path.join("mra_parser").join("regs.asl")
+    let config_dir = path.join("mra_parser");
+
+    fs::create_dir_all(&config_dir).expect("Can't create app data directory");
+
+    config_dir.join("regs.asl")
 }
 
 fn init_state() -> File {
@@ -30,7 +34,6 @@ fn init_state() -> File {
 }
 
 async fn download_file(from: String, to: PathBuf) -> Result<()> {
-    println!("Downloading: {}", from);
     let response = reqwest::get(&from).await?;
     let mut file = OpenOptions::new()
         .read(true)
@@ -40,29 +43,23 @@ async fn download_file(from: String, to: PathBuf) -> Result<()> {
 
     let mut content = Cursor::new(response.bytes().await?);
     std::io::copy(&mut content, &mut file)?;
-    println!("Done: {}", from);
 
     let parent = to.parent().expect("Destination must have parent directory");
-    let output = Command::new("/usr/bin/tar")
+    Command::new("/usr/bin/tar")
         .current_dir(parent)
         .arg("zxf")
         .arg(&to)
         .output()?;
-    println!("untar {} status: {}", to.display(), output.status);
 
     Ok(())
 }
 
-fn clone_repo(url: &str, dst: &Path) -> io::Result<()> {
-    let output = Command::new("git")
+fn clone_repo(url: &str, dst: &Path) -> Result<()> {
+    Command::new("git")
         .current_dir(dst)
         .arg("clone")
         .arg(url)
         .output()?;
-    println!("git clone status: {}", output.status);
-    io::stdout().write_all(&output.stdout)?;
-    io::stderr().write_all(&output.stderr)?;
-
     Ok(())
 }
 
@@ -95,6 +92,7 @@ async fn prepare() -> Result<()> {
 
     std::fs::create_dir_all(&tmp_dir)?;
 
+    println!("Cloning alastarreid/mra_tools");
     clone_repo(
         "https://github.com/alastairreid/mra_tools.git",
         tmp_dir.as_path(),
@@ -109,13 +107,18 @@ async fn prepare() -> Result<()> {
     ];
 
     let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
+
+    println!("Downloading and unpacking armv8-A spec");
     download_files(url_prefix, &spec_dir, &spec_files).await?;
 
+    println!("Building mra_tools");
     run_make(&repo_dir, "all")?;
 
     let regs_asl = repo_dir.join("arch").join("regs.asl");
 
+    println!("Copying regs.asl");
     fs::copy(regs_asl, regs_asl_path())?;
+    println!("Initialized");
 
     Ok(())
 }
