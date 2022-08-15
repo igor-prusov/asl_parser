@@ -175,14 +175,14 @@ fn program() {
     assert!(matches!(&prog[1], Statement::Register(_)));
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BitfieldDesc {
     pub from: u32,
     pub to: u32,
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RegisterDesc {
     pub name: String,
     pub bits: u32,

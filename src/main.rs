@@ -27,7 +27,7 @@ enum TState<'a> {
         prefix: String,
     },
     Selected {
-        reg: RegisterDesc,
+        reg: &'a RegisterDesc,
     },
 }
 
@@ -42,15 +42,13 @@ impl<'a> TState<'a> {
             .range(String::from(prefix)..)
             .take_while(|x| x.0.starts_with(&prefix));
         let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
-        if m.is_empty() {
-            TState::Empty {}
-        } else if m.len() == 1 {
-            TState::Selected { reg: m[0].clone() }
-        } else {
-            TState::Ambiguous {
-                prefix: prefix.to_string(),
+        match m.len() {
+            0 => TState::Empty {},
+            1 => TState::Selected { reg: m[0] },
+            _ => TState::Ambiguous {
                 vec: m,
-            }
+                prefix: prefix.to_string(),
+            },
         }
     }
 }
@@ -71,9 +69,7 @@ impl<'a> FSM<'a> {
             /* From Ambiguous */
             (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
                 if value < vec.len() {
-                    TState::Selected {
-                        reg: vec[value].clone(),
-                    }
+                    TState::Selected { reg: vec[value] }
                 } else {
                     TState::Ambiguous {
                         vec: vec.to_vec(),
@@ -90,7 +86,7 @@ impl<'a> FSM<'a> {
             /* From Selected */
             (TState::Selected { reg }, Event::Number { value: _ }) => {
                 /* TODO: decode here */
-                TState::Selected { reg: reg.clone() }
+                TState::Selected { reg: reg }
             }
 
             (TState::Selected { reg: _ }, Event::Text { value }) => {
