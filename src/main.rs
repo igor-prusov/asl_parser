@@ -14,6 +14,117 @@ use tempdir::TempDir;
 
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
+enum Event {
+    Text { value: String },
+    Number { value: usize },
+}
+
+#[derive(Clone)]
+enum TState<'a> {
+    Empty {},
+    Ambiguous {
+        vec: Vec<&'a RegisterDesc>,
+        prefix: String,
+    },
+    Selected {
+        name: String,
+    },
+}
+
+struct FSM<'a> {
+    data: &'a BTreeMap<String, RegisterDesc>,
+    state: TState<'a>,
+}
+
+impl<'a> TState<'a> {
+    fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
+        let it = data
+            .range(String::from(prefix)..)
+            .take_while(|x| x.0.starts_with(&prefix));
+        let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
+        if m.is_empty() {
+            TState::Empty {}
+        } else if m.len() == 1 {
+            TState::Selected {
+                name: m[0].name.clone(),
+            }
+        } else {
+            TState::Ambiguous {
+                prefix: prefix.to_string(),
+                vec: m,
+            }
+        }
+    }
+}
+
+impl<'a> FSM<'a> {
+    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> FSM<'a> {
+        FSM {
+            data: data,
+            state: TState::Empty {},
+        }
+    }
+    fn next<'b>(&'b mut self, event: Event) {
+        self.state = match (&self.state, event) {
+            /* From Empty */
+            (TState::Empty {}, Event::Number { value: _ }) => TState::Empty {},
+            (TState::Empty {}, Event::Text { value }) => TState::from_prefix(&value, &self.data),
+
+            /* From Ambiguous */
+            (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
+                if value < vec.len() {
+                    TState::Selected {
+                        name: vec[value].name.clone(),
+                    }
+                } else {
+                    TState::Ambiguous {
+                        vec: vec.to_vec(),
+                        prefix: prefix.to_string(),
+                    }
+                }
+            }
+
+            (TState::Ambiguous { vec, prefix }, Event::Text { value:_ }) => {
+                TState::Ambiguous { vec: vec.to_vec(), prefix: prefix.to_string() }
+            }
+
+            /* From Selected */
+            (TState::Selected { name }, Event::Number { value: _ }) => {
+                /* TODO: decode here */
+                TState::Selected {
+                    name: name.to_string(),
+                }
+            }
+
+            (TState::Selected { name:_ }, Event::Text { value }) => {
+                TState::from_prefix(&value, &self.data)
+            }
+
+        };
+
+        if let TState::Selected {name} = &self.state {
+            println!("Selected register {}", name)
+        }
+
+        if let TState::Ambiguous { vec, prefix: _ } = &self.state {
+            for (i, reg) in vec.iter().enumerate() {
+                println!("{}: {}", i, reg.name);
+            }
+        }
+
+    }
+
+    fn prompt(&self) -> &str {
+        match &self.state {
+            TState::Empty {  } => "",
+            TState::Ambiguous { vec:_, prefix } => prefix,
+            TState::Selected { name } => name,
+
+        }
+
+    }
+}
+
 fn regs_asl_path() -> PathBuf {
     let path = dirs::data_dir().expect("Can't get user data directory");
 
@@ -123,12 +234,12 @@ async fn prepare() -> Result<()> {
     Ok(())
 }
 
-fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
+fn run_tui_alt(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
+    let mut fsm = FSM::new(data);
     println!("Enter register names:");
     loop {
-        print!("> ");
+        print!("{}> ", fsm.prompt());
         io::stdout().flush()?;
-
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
 
@@ -137,36 +248,13 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
             break;
         }
 
-        let it = data
-            .range(String::from(&input)..)
-            .take_while(|x| x.0.starts_with(&input));
+        let event = match input.parse::<usize>() {
+            Ok(x) => Event::Number { value: x },
+            Err(_) => Event::Text { value: input }
+        };
 
-        let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
-
-        if m.is_empty() {
-            continue;
-        }
-
-        let mut index = 0;
-
-        if m.len() != 1 {
-            for (i, reg) in m.iter().enumerate() {
-                println!("{}: {}", i, reg.name);
-            }
-
-            print!("{}> ", input);
-            io::stdout().flush()?;
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-            index = match input.trim().parse::<usize>() {
-                Ok(x) if x <= m.len() => x,
-                _ => continue,
-            }
-        }
-
-        println!("{}", m[index]);
+        fsm.next(event);
     }
-
     Ok(())
 }
 
@@ -187,5 +275,5 @@ async fn main() {
 
     let data = parse_registers(&input);
 
-    run_tui(&data).expect("Error while interacting with user");
+    run_tui_alt(&data).expect("Error while interacting with user");
 }
