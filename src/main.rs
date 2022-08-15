@@ -227,7 +227,7 @@ async fn prepare() -> Result<()> {
     Ok(())
 }
 
-fn run_tui_alt(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
+fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
     let mut fsm = FSM::new(data);
     println!("Enter register names:");
     loop {
@@ -268,5 +268,5 @@ async fn main() {
 
     let data = parse_registers(&input);
 
-    run_tui_alt(&data).expect("Error while interacting with user");
+    run_tui(&data).expect("Error while interacting with user");
 }
