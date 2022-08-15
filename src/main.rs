@@ -31,7 +31,7 @@ enum TState<'a> {
     },
 }
 
-struct FSM<'a> {
+struct Fsm<'a> {
     data: &'a BTreeMap<String, RegisterDesc>,
     state: TState<'a>,
 }
@@ -53,18 +53,18 @@ impl<'a> TState<'a> {
     }
 }
 
-impl<'a> FSM<'a> {
-    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> FSM<'a> {
-        FSM {
-            data: data,
+impl<'a> Fsm<'a> {
+    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
+        Fsm {
+            data,
             state: TState::Empty {},
         }
     }
-    fn next<'b>(&'b mut self, event: Event) {
+    fn next(&mut self, event: Event) {
         self.state = match (&self.state, event) {
             /* From Empty */
             (TState::Empty {}, Event::Number { value: _ }) => TState::Empty {},
-            (TState::Empty {}, Event::Text { value }) => TState::from_prefix(&value, &self.data),
+            (TState::Empty {}, Event::Text { value }) => TState::from_prefix(&value, self.data),
 
             /* From Ambiguous */
             (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
@@ -86,11 +86,11 @@ impl<'a> FSM<'a> {
             /* From Selected */
             (TState::Selected { reg }, Event::Number { value: _ }) => {
                 /* TODO: decode here */
-                TState::Selected { reg: reg }
+                TState::Selected { reg }
             }
 
             (TState::Selected { reg: _ }, Event::Text { value }) => {
-                TState::from_prefix(&value, &self.data)
+                TState::from_prefix(&value, self.data)
             }
         };
 
@@ -224,7 +224,7 @@ async fn prepare() -> Result<()> {
 }
 
 fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
-    let mut fsm = FSM::new(data);
+    let mut fsm = Fsm::new(data);
     println!("Enter register names:");
     loop {
         print!("{}> ", fsm.prompt());
