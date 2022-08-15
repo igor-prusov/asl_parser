@@ -27,7 +27,7 @@ enum TState<'a> {
         prefix: String,
     },
     Selected {
-        name: String,
+        reg: RegisterDesc,
     },
 }
 
@@ -45,9 +45,7 @@ impl<'a> TState<'a> {
         if m.is_empty() {
             TState::Empty {}
         } else if m.len() == 1 {
-            TState::Selected {
-                name: m[0].name.clone(),
-            }
+            TState::Selected { reg: m[0].clone() }
         } else {
             TState::Ambiguous {
                 prefix: prefix.to_string(),
@@ -74,7 +72,7 @@ impl<'a> FSM<'a> {
             (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
                 if value < vec.len() {
                     TState::Selected {
-                        name: vec[value].name.clone(),
+                        reg: vec[value].clone(),
                     }
                 } else {
                     TState::Ambiguous {
@@ -84,26 +82,24 @@ impl<'a> FSM<'a> {
                 }
             }
 
-            (TState::Ambiguous { vec, prefix }, Event::Text { value:_ }) => {
-                TState::Ambiguous { vec: vec.to_vec(), prefix: prefix.to_string() }
-            }
+            (TState::Ambiguous { vec, prefix }, Event::Text { value: _ }) => TState::Ambiguous {
+                vec: vec.to_vec(),
+                prefix: prefix.to_string(),
+            },
 
             /* From Selected */
-            (TState::Selected { name }, Event::Number { value: _ }) => {
+            (TState::Selected { reg }, Event::Number { value: _ }) => {
                 /* TODO: decode here */
-                TState::Selected {
-                    name: name.to_string(),
-                }
+                TState::Selected { reg: reg.clone() }
             }
 
-            (TState::Selected { name:_ }, Event::Text { value }) => {
+            (TState::Selected { reg: _ }, Event::Text { value }) => {
                 TState::from_prefix(&value, &self.data)
             }
-
         };
 
-        if let TState::Selected {name} = &self.state {
-            println!("Selected register {}", name)
+        if let TState::Selected { reg } = &self.state {
+            println!("{}", reg)
         }
 
         if let TState::Ambiguous { vec, prefix: _ } = &self.state {
@@ -111,17 +107,14 @@ impl<'a> FSM<'a> {
                 println!("{}: {}", i, reg.name);
             }
         }
-
     }
 
     fn prompt(&self) -> &str {
         match &self.state {
-            TState::Empty {  } => "",
-            TState::Ambiguous { vec:_, prefix } => prefix,
-            TState::Selected { name } => name,
-
+            TState::Empty {} => "",
+            TState::Ambiguous { vec: _, prefix } => prefix,
+            TState::Selected { reg } => reg.name.as_ref(),
         }
-
     }
 }
 
@@ -250,7 +243,7 @@ fn run_tui_alt(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
 
         let event = match input.parse::<usize>() {
             Ok(x) => Event::Number { value: x },
-            Err(_) => Event::Text { value: input }
+            Err(_) => Event::Text { value: input },
         };
 
         fsm.next(event);
