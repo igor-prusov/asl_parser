@@ -15,13 +15,13 @@ use tempdir::TempDir;
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
 enum Event {
-    Text { value: String },
-    Number { value: u64 },
+    Text(String),
+    Number(u64),
 }
 
 #[derive(Clone)]
 enum TState<'a> {
-    Empty {},
+    Empty,
     Ambiguous {
         vec: Vec<&'a RegisterDesc>,
         prefix: String,
@@ -44,7 +44,7 @@ impl<'a> TState<'a> {
             .take_while(|x| x.0.starts_with(&prefix));
         let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
         match m.len() {
-            0 => TState::Empty {},
+            0 => TState::Empty,
             1 => TState::Selected {
                 reg: m[0],
                 value: None,
@@ -61,41 +61,39 @@ impl<'a> Fsm<'a> {
     fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
         Fsm {
             data,
-            state: TState::Empty {},
+            state: TState::Empty,
         }
     }
     fn next(&mut self, event: Event) {
         self.state = match (&self.state, event) {
             /* From Empty */
-            (TState::Empty {}, Event::Number { value: _ }) => TState::Empty {},
-            (TState::Empty {}, Event::Text { value }) => TState::from_prefix(&value, self.data),
+            (TState::Empty, Event::Number(_)) => TState::Empty,
+            (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, self.data),
 
             /* From Ambiguous */
-            (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
-                match value.try_into() {
-                    Ok::<usize, _>(x) if x < vec.len() => TState::Selected {
-                        reg: vec[x],
-                        value: None,
-                    },
-                    _ => TState::Ambiguous {
-                        vec: vec.to_vec(),
-                        prefix: prefix.to_string(),
-                    },
-                }
-            }
+            (TState::Ambiguous { vec, prefix }, Event::Number(value)) => match value.try_into() {
+                Ok::<usize, _>(x) if x < vec.len() => TState::Selected {
+                    reg: vec[x],
+                    value: None,
+                },
+                _ => TState::Ambiguous {
+                    vec: vec.to_vec(),
+                    prefix: prefix.to_string(),
+                },
+            },
 
-            (TState::Ambiguous { vec, prefix }, Event::Text { value: _ }) => TState::Ambiguous {
+            (TState::Ambiguous { vec, prefix }, Event::Text(_)) => TState::Ambiguous {
                 vec: vec.to_vec(),
                 prefix: prefix.to_string(),
             },
 
             /* From Selected */
-            (TState::Selected { reg, value: _ }, Event::Number { value: x }) => TState::Selected {
+            (TState::Selected { reg, value: _ }, Event::Number(x)) => TState::Selected {
                 reg,
                 value: Some(x),
             },
 
-            (TState::Selected { reg: _, value: _ }, Event::Text { value }) => {
+            (TState::Selected { reg: _, value: _ }, Event::Text(value)) => {
                 TState::from_prefix(&value, self.data)
             }
         };
@@ -116,7 +114,7 @@ impl<'a> Fsm<'a> {
 
     fn prompt(&self) -> &str {
         match &self.state {
-            TState::Empty {} => "",
+            TState::Empty => "",
             TState::Ambiguous { vec: _, prefix } => prefix,
             TState::Selected { reg, value: _ } => reg.name.as_ref(),
         }
@@ -247,8 +245,8 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
         }
 
         let event = match input.parse::<u64>() {
-            Ok(x) => Event::Number { value: x },
-            Err(_) => Event::Text { value: input },
+            Ok(x) => Event::Number(x),
+            Err(_) => Event::Text(input),
         };
 
         fsm.next(event);
