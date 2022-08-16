@@ -9,8 +9,10 @@ use mra_parser::{parse_registers, RegisterDesc};
 
 mod asl_helpers;
 use asl_helpers::Result;
-use asl_helpers::{prepare, regs_asl_path};
+use asl_helpers::{build_regs_asl, regs_asl_path};
 use tui_fsm::{Event, Fsm};
+
+use crate::tui_fsm::TState;
 
 mod tui_fsm;
 
@@ -43,6 +45,11 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
         };
 
         fsm.next(event);
+        match fsm.current() {
+            TState::Selected(x) => println!("{}", x),
+            TState::Ambiguous(x) => println!("{}", x),
+            TState::Empty => (),
+        }
     }
     Ok(())
 }
@@ -51,7 +58,7 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
 async fn main() {
     let args: Vec<_> = args().collect();
     if args.len() > 1 && args[1] == "init" {
-        if let Err(e) = prepare().await {
+        if let Err(e) = build_regs_asl().await {
             panic!("Can't initialize regs.asl: {}", e);
         }
     }

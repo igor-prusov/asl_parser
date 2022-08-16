@@ -73,7 +73,7 @@ async fn download_files(url_prefix: &str, to: &Path, files: &[&str]) -> Result<(
     Ok(())
 }
 
-pub async fn prepare() -> Result<()> {
+pub async fn build_regs_asl() -> Result<()> {
     let tmp_dir = TempDir::new("regs_asl_parser")?.into_path();
     let repo_dir = tmp_dir.join("mra_tools");
     let spec_dir = repo_dir.join("v8.6");

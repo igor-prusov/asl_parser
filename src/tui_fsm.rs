@@ -7,18 +7,18 @@ pub enum Event {
     Number(u64),
 }
 
-struct RegisterInfo<'a> {
+pub struct RegisterInfo<'a> {
     reg: &'a RegisterDesc,
     value: Option<u64>,
 }
 
 #[derive(Clone)]
-struct RegisterSubset<'a> {
+pub struct RegisterSubset<'a> {
     vec: Vec<&'a RegisterDesc>,
     prefix: String,
 }
 
-enum TState<'a> {
+pub enum TState<'a> {
     Empty,
     Ambiguous(RegisterSubset<'a>),
     Selected(RegisterInfo<'a>),
@@ -35,6 +35,15 @@ impl<'a> fmt::Display for RegisterInfo<'a> {
         if let Some(x) = self.value {
             writeln!(f, "value = {}", x)?;
         };
+        Ok(())
+    }
+}
+
+impl<'a> fmt::Display for RegisterSubset<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, reg) in self.vec.iter().enumerate() {
+            writeln!(f, "{}: {}", i, reg.name)?;
+        }
         Ok(())
     }
 }
@@ -100,16 +109,10 @@ impl<'a> Fsm<'a> {
 
             (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, self.data),
         };
+    }
 
-        if let TState::Selected(reg) = &self.state {
-            println!("{}", reg);
-        }
-
-        if let TState::Ambiguous(subset) = &self.state {
-            for (i, reg) in subset.vec.iter().enumerate() {
-                println!("{}: {}", i, reg.name);
-            }
-        }
+    pub fn current(&'a self) -> &'a TState<'a> {
+        &self.state
     }
 
     pub fn prompt(&self) -> &str {
