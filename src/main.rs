@@ -16,7 +16,7 @@ type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
 enum Event {
     Text { value: String },
-    Number { value: usize },
+    Number { value: u64 },
 }
 
 #[derive(Clone)]
@@ -28,6 +28,7 @@ enum TState<'a> {
     },
     Selected {
         reg: &'a RegisterDesc,
+        value: Option<u64>,
     },
 }
 
@@ -44,7 +45,10 @@ impl<'a> TState<'a> {
         let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
         match m.len() {
             0 => TState::Empty {},
-            1 => TState::Selected { reg: m[0] },
+            1 => TState::Selected {
+                reg: m[0],
+                value: None,
+            },
             _ => TState::Ambiguous {
                 vec: m,
                 prefix: prefix.to_string(),
@@ -68,13 +72,15 @@ impl<'a> Fsm<'a> {
 
             /* From Ambiguous */
             (TState::Ambiguous { vec, prefix }, Event::Number { value }) => {
-                if value < vec.len() {
-                    TState::Selected { reg: vec[value] }
-                } else {
-                    TState::Ambiguous {
+                match value.try_into() {
+                    Ok::<usize, _>(x) if x < vec.len() => TState::Selected {
+                        reg: vec[x],
+                        value: None,
+                    },
+                    _ => TState::Ambiguous {
                         vec: vec.to_vec(),
                         prefix: prefix.to_string(),
-                    }
+                    },
                 }
             }
 
@@ -84,18 +90,21 @@ impl<'a> Fsm<'a> {
             },
 
             /* From Selected */
-            (TState::Selected { reg }, Event::Number { value: _ }) => {
-                /* TODO: decode here */
-                TState::Selected { reg }
-            }
+            (TState::Selected { reg, value: _ }, Event::Number { value: x }) => TState::Selected {
+                reg,
+                value: Some(x),
+            },
 
-            (TState::Selected { reg: _ }, Event::Text { value }) => {
+            (TState::Selected { reg: _, value: _ }, Event::Text { value }) => {
                 TState::from_prefix(&value, self.data)
             }
         };
 
-        if let TState::Selected { reg } = &self.state {
-            println!("{}", reg)
+        if let TState::Selected { reg, value } = &self.state {
+            println!("{}", reg);
+            if let Some(x) = value {
+                println!("value = {}", x);
+            }
         }
 
         if let TState::Ambiguous { vec, prefix: _ } = &self.state {
@@ -109,7 +118,7 @@ impl<'a> Fsm<'a> {
         match &self.state {
             TState::Empty {} => "",
             TState::Ambiguous { vec: _, prefix } => prefix,
-            TState::Selected { reg } => reg.name.as_ref(),
+            TState::Selected { reg, value: _ } => reg.name.as_ref(),
         }
     }
 }
@@ -237,7 +246,7 @@ fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
             break;
         }
 
-        let event = match input.parse::<usize>() {
+        let event = match input.parse::<u64>() {
             Ok(x) => Event::Number { value: x },
             Err(_) => Event::Text { value: input },
         };
