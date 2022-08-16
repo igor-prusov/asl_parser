@@ -1,147 +1,18 @@
 use std::{
     collections::BTreeMap,
     env::args,
-    error, fs,
-    fs::{File, OpenOptions},
-    io::{self, Cursor, Read, Write},
-    path::{Path, PathBuf},
-    process::Command,
+    fs::File,
+    io::{self, Read, Write},
 };
 
-use core::fmt;
-use futures::future::try_join_all;
 use mra_parser::{parse_registers, RegisterDesc};
-use tempdir::TempDir;
 
-type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
+mod asl_helpers;
+use asl_helpers::Result;
+use asl_helpers::{prepare, regs_asl_path};
+use tui_fsm::{Event, Fsm};
 
-enum Event {
-    Text(String),
-    Number(u64),
-}
-
-struct RegisterInfo<'a> {
-    reg: &'a RegisterDesc,
-    value: Option<u64>,
-}
-
-#[derive(Clone)]
-struct RegisterSubset<'a> {
-    vec: Vec<&'a RegisterDesc>,
-    prefix: String,
-}
-
-enum TState<'a> {
-    Empty,
-    Ambiguous(RegisterSubset<'a>),
-    Selected(RegisterInfo<'a>),
-}
-
-struct Fsm<'a> {
-    data: &'a BTreeMap<String, RegisterDesc>,
-    state: TState<'a>,
-}
-impl<'a> fmt::Display for RegisterInfo<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", self.reg)?;
-        if let Some(x) = self.value {
-            writeln!(f, "value = {}", x)?;
-        };
-        Ok(())
-    }
-}
-
-impl<'a> RegisterInfo<'a> {
-    fn new(desc: &'a RegisterDesc) -> Self {
-        RegisterInfo {
-            reg: desc,
-            value: None,
-        }
-    }
-}
-
-impl<'a> RegisterSubset<'a> {
-    fn new(vec: Vec<&'a RegisterDesc>, prefix: &str) -> RegisterSubset<'a> {
-        RegisterSubset {
-            vec,
-            prefix: String::from(prefix),
-        }
-    }
-}
-
-impl<'a> TState<'a> {
-    fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
-        let it = data
-            .range(String::from(prefix)..)
-            .take_while(|x| x.0.starts_with(&prefix));
-        let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
-        match m.len() {
-            0 => TState::Empty,
-            1 => TState::Selected(RegisterInfo::new(m[0])),
-            _ => TState::Ambiguous(RegisterSubset::new(m, prefix)),
-        }
-    }
-}
-
-impl<'a> Fsm<'a> {
-    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
-        Fsm {
-            data,
-            state: TState::Empty,
-        }
-    }
-    fn next(&mut self, event: Event) {
-        self.state = match (&self.state, event) {
-            /* From Empty */
-            (TState::Empty, Event::Number(_)) => TState::Empty,
-            (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, self.data),
-
-            /* From Ambiguous */
-            (TState::Ambiguous(subset), event) => match event {
-                Event::Number(x) if (x as usize) < subset.vec.len() => {
-                    TState::Selected(RegisterInfo::new(subset.vec[x as usize]))
-                }
-                _ => TState::Ambiguous(subset.clone()),
-            },
-
-            /* From Selected */
-            (TState::Selected(reg), Event::Number(x)) => TState::Selected(RegisterInfo {
-                reg: reg.reg,
-                value: Some(x),
-            }),
-
-            (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, self.data),
-        };
-
-        if let TState::Selected(reg) = &self.state {
-            println!("{}", reg);
-        }
-
-        if let TState::Ambiguous(subset) = &self.state {
-            for (i, reg) in subset.vec.iter().enumerate() {
-                println!("{}: {}", i, reg.name);
-            }
-        }
-    }
-
-    fn prompt(&self) -> &str {
-        match &self.state {
-            TState::Empty => "",
-            TState::Ambiguous(subset) => subset.prefix.as_ref(),
-            TState::Selected(reg) => reg.reg.name.as_ref(),
-        }
-    }
-}
-
-fn regs_asl_path() -> PathBuf {
-    let path = dirs::data_dir().expect("Can't get user data directory");
-
-    let config_dir = path.join("mra_parser");
-
-    fs::create_dir_all(&config_dir).expect("Can't create app data directory");
-
-    config_dir.join("regs.asl")
-}
+mod tui_fsm;
 
 fn init_state() -> File {
     let path = regs_asl_path();
@@ -150,96 +21,6 @@ fn init_state() -> File {
         Ok(x) => x,
         Err(e) => panic!("Can't open {}: {}", path.display(), e),
     }
-}
-
-async fn download_file(from: String, to: PathBuf) -> Result<()> {
-    let response = reqwest::get(&from).await?;
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&to)?;
-
-    let mut content = Cursor::new(response.bytes().await?);
-    std::io::copy(&mut content, &mut file)?;
-
-    let parent = to.parent().expect("Destination must have parent directory");
-    Command::new("/usr/bin/tar")
-        .current_dir(parent)
-        .arg("zxf")
-        .arg(&to)
-        .output()?;
-
-    Ok(())
-}
-
-fn clone_repo(url: &str, dst: &Path) -> Result<()> {
-    Command::new("git")
-        .current_dir(dst)
-        .arg("clone")
-        .arg(url)
-        .output()?;
-    Ok(())
-}
-
-async fn download_files(url_prefix: &str, to: &Path, files: &[&str]) -> Result<()> {
-    let data = files.iter().map(|x| {
-        let url = [url_prefix, x].join("");
-        let path = to.join(x);
-        (url, path)
-    });
-
-    let mut promises = Vec::new();
-
-    for (url, path) in data {
-        promises.push(download_file(url, path));
-    }
-
-    try_join_all(promises).await?;
-    Ok(())
-}
-
-fn run_make(dir: &Path, target: &str) -> Result<()> {
-    Command::new("make").current_dir(dir).arg(target).output()?;
-    Ok(())
-}
-
-async fn prepare() -> Result<()> {
-    let tmp_dir = TempDir::new("regs_asl_parser")?.into_path();
-    let repo_dir = tmp_dir.join("mra_tools");
-    let spec_dir = repo_dir.join("v8.6");
-
-    std::fs::create_dir_all(&tmp_dir)?;
-
-    println!("Cloning alastarreid/mra_tools");
-    clone_repo(
-        "https://github.com/alastairreid/mra_tools.git",
-        tmp_dir.as_path(),
-    )?;
-
-    std::fs::create_dir_all(&spec_dir)?;
-
-    let spec_files = vec![
-        "SysReg_xml_v86A-2019-12.tar.gz",
-        "A64_ISA_xml_v86A-2019-12.tar.gz",
-        "AArch32_ISA_xml_v86A-2019-12.tar.gz",
-    ];
-
-    let url_prefix = "https://developer.arm.com/-/media/developer/products/architecture/armv8-a-architecture/2019-12/";
-
-    println!("Downloading and unpacking armv8-A spec");
-    download_files(url_prefix, &spec_dir, &spec_files).await?;
-
-    println!("Building mra_tools");
-    run_make(&repo_dir, "all")?;
-
-    let regs_asl = repo_dir.join("arch").join("regs.asl");
-
-    println!("Copying regs.asl");
-    fs::copy(regs_asl, regs_asl_path())?;
-    println!("Initialized");
-
-    Ok(())
 }
 
 fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> Result<()> {
