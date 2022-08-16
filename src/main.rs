@@ -71,20 +71,15 @@ impl<'a> Fsm<'a> {
             (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, self.data),
 
             /* From Ambiguous */
-            (TState::Ambiguous { vec, prefix }, Event::Number(value)) => match value.try_into() {
-                Ok::<usize, _>(x) if x < vec.len() => TState::Selected {
-                    reg: vec[x],
+            (TState::Ambiguous { vec, prefix }, event) => match event {
+                Event::Number(x) if (x as usize) < vec.len() => TState::Selected {
+                    reg: vec[x as usize],
                     value: None,
                 },
                 _ => TState::Ambiguous {
                     vec: vec.to_vec(),
                     prefix: prefix.to_string(),
                 },
-            },
-
-            (TState::Ambiguous { vec, prefix }, Event::Text(_)) => TState::Ambiguous {
-                vec: vec.to_vec(),
-                prefix: prefix.to_string(),
             },
 
             /* From Selected */
