@@ -7,26 +7,26 @@ pub enum Event {
     Number(u64),
 }
 
-pub struct RegisterInfo<'a> {
-    pub reg: &'a RegisterDesc,
-    pub value: Option<u64>,
+struct RegisterInfo<'a> {
+    reg: &'a RegisterDesc,
+    value: Option<u64>,
 }
 
 #[derive(Clone)]
-pub struct RegisterSubset<'a> {
-    pub vec: Vec<&'a RegisterDesc>,
-    pub prefix: String,
+struct RegisterSubset<'a> {
+    vec: Vec<&'a RegisterDesc>,
+    prefix: String,
 }
 
-pub enum TState<'a> {
+enum TState<'a> {
     Empty,
     Ambiguous(RegisterSubset<'a>),
     Selected(RegisterInfo<'a>),
 }
 
 pub struct Fsm<'a> {
-    pub data: &'a BTreeMap<String, RegisterDesc>,
-    pub state: TState<'a>,
+    data: &'a BTreeMap<String, RegisterDesc>,
+    state: TState<'a>,
 }
 
 impl<'a> fmt::Display for RegisterInfo<'a> {
@@ -40,7 +40,7 @@ impl<'a> fmt::Display for RegisterInfo<'a> {
 }
 
 impl<'a> RegisterInfo<'a> {
-    pub fn new(desc: &'a RegisterDesc) -> Self {
+    fn new(desc: &'a RegisterDesc) -> Self {
         RegisterInfo {
             reg: desc,
             value: None,
@@ -49,7 +49,7 @@ impl<'a> RegisterInfo<'a> {
 }
 
 impl<'a> RegisterSubset<'a> {
-    pub fn new(vec: Vec<&'a RegisterDesc>, prefix: &str) -> RegisterSubset<'a> {
+    fn new(vec: Vec<&'a RegisterDesc>, prefix: &str) -> RegisterSubset<'a> {
         RegisterSubset {
             vec,
             prefix: String::from(prefix),
@@ -58,7 +58,7 @@ impl<'a> RegisterSubset<'a> {
 }
 
 impl<'a> TState<'a> {
-    pub fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
+    fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
         let it = data
             .range(String::from(prefix)..)
             .take_while(|x| x.0.starts_with(&prefix));
