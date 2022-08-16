@@ -8,6 +8,7 @@ use std::{
     process::Command,
 };
 
+use core::fmt;
 use futures::future::try_join_all;
 use mra_parser::{parse_registers, RegisterDesc};
 use tempdir::TempDir;
@@ -20,21 +21,41 @@ enum Event {
 }
 
 #[derive(Clone)]
+struct RegisterInfo<'a> {
+    reg: &'a RegisterDesc,
+    value: Option<u64>,
+}
+
 enum TState<'a> {
     Empty,
     Ambiguous {
         vec: Vec<&'a RegisterDesc>,
         prefix: String,
     },
-    Selected {
-        reg: &'a RegisterDesc,
-        value: Option<u64>,
-    },
+    Selected(RegisterInfo<'a>),
 }
 
 struct Fsm<'a> {
     data: &'a BTreeMap<String, RegisterDesc>,
     state: TState<'a>,
+}
+impl<'a> fmt::Display for RegisterInfo<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", self.reg)?;
+        if let Some(x) = self.value {
+            writeln!(f, "value = {}", x)?;
+        };
+        Ok(())
+    }
+}
+
+impl<'a> RegisterInfo<'a> {
+    fn new(desc: &'a RegisterDesc) -> Self {
+        RegisterInfo {
+            reg: desc,
+            value: None,
+        }
+    }
 }
 
 impl<'a> TState<'a> {
@@ -45,10 +66,7 @@ impl<'a> TState<'a> {
         let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
         match m.len() {
             0 => TState::Empty,
-            1 => TState::Selected {
-                reg: m[0],
-                value: None,
-            },
+            1 => TState::Selected(RegisterInfo::new(m[0])),
             _ => TState::Ambiguous {
                 vec: m,
                 prefix: prefix.to_string(),
@@ -72,10 +90,9 @@ impl<'a> Fsm<'a> {
 
             /* From Ambiguous */
             (TState::Ambiguous { vec, prefix }, event) => match event {
-                Event::Number(x) if (x as usize) < vec.len() => TState::Selected {
-                    reg: vec[x as usize],
-                    value: None,
-                },
+                Event::Number(x) if (x as usize) < vec.len() => {
+                    TState::Selected(RegisterInfo::new(vec[x as usize]))
+                }
                 _ => TState::Ambiguous {
                     vec: vec.to_vec(),
                     prefix: prefix.to_string(),
@@ -83,21 +100,16 @@ impl<'a> Fsm<'a> {
             },
 
             /* From Selected */
-            (TState::Selected { reg, value: _ }, Event::Number(x)) => TState::Selected {
-                reg,
+            (TState::Selected(reg), Event::Number(x)) => TState::Selected(RegisterInfo {
+                reg: reg.reg,
                 value: Some(x),
-            },
+            }),
 
-            (TState::Selected { reg: _, value: _ }, Event::Text(value)) => {
-                TState::from_prefix(&value, self.data)
-            }
+            (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, self.data),
         };
 
-        if let TState::Selected { reg, value } = &self.state {
+        if let TState::Selected(reg) = &self.state {
             println!("{}", reg);
-            if let Some(x) = value {
-                println!("value = {}", x);
-            }
         }
 
         if let TState::Ambiguous { vec, prefix: _ } = &self.state {
@@ -111,7 +123,7 @@ impl<'a> Fsm<'a> {
         match &self.state {
             TState::Empty => "",
             TState::Ambiguous { vec: _, prefix } => prefix,
-            TState::Selected { reg, value: _ } => reg.name.as_ref(),
+            TState::Selected(reg) => reg.reg.name.as_ref(),
         }
     }
 }
