@@ -1,30 +1,34 @@
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    io::{self, Write},
+};
 
 use mra_parser::RegisterDesc;
 
-pub enum Event {
+enum Event {
     Text(String),
     Number(u64),
 }
 
-pub struct RegisterInfo<'a> {
+struct RegisterInfo<'a> {
     reg: &'a RegisterDesc,
     value: Option<u64>,
 }
 
 #[derive(Clone)]
-pub struct RegisterSubset<'a> {
+struct RegisterSubset<'a> {
     vec: Vec<&'a RegisterDesc>,
     prefix: String,
 }
 
-pub enum TState<'a> {
+enum TState<'a> {
     Empty,
     Ambiguous(RegisterSubset<'a>),
     Selected(RegisterInfo<'a>),
 }
 
-pub struct Fsm<'a> {
+struct Fsm<'a> {
     data: &'a BTreeMap<String, RegisterDesc>,
     state: TState<'a>,
 }
@@ -81,13 +85,13 @@ impl<'a> TState<'a> {
 }
 
 impl<'a> Fsm<'a> {
-    pub fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
+    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
         Fsm {
             data,
             state: TState::Empty,
         }
     }
-    pub fn next(&mut self, event: Event) {
+    fn next(&mut self, event: Event) {
         self.state = match (&self.state, event) {
             /* From Empty */
             (TState::Empty, Event::Number(_)) => TState::Empty,
@@ -111,15 +115,44 @@ impl<'a> Fsm<'a> {
         };
     }
 
-    pub fn current(&'a self) -> &'a TState<'a> {
+    fn current(&'a self) -> &'a TState<'a> {
         &self.state
     }
 
-    pub fn prompt(&self) -> &str {
+    fn prompt(&self) -> &str {
         match &self.state {
             TState::Empty => "",
             TState::Ambiguous(subset) => subset.prefix.as_ref(),
             TState::Selected(reg) => reg.reg.name.as_ref(),
         }
     }
+}
+
+pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
+    let mut fsm = Fsm::new(data);
+    println!("Enter register names:");
+    loop {
+        print!("{}> ", fsm.prompt());
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        let input = input.trim().to_lowercase();
+        if input.is_empty() {
+            break;
+        }
+
+        let event = match input.parse::<u64>() {
+            Ok(x) => Event::Number(x),
+            Err(_) => Event::Text(input),
+        };
+
+        fsm.next(event);
+        match fsm.current() {
+            TState::Selected(x) => println!("{}", x),
+            TState::Ambiguous(x) => println!("{}", x),
+            TState::Empty => (),
+        }
+    }
+    Ok(())
 }
