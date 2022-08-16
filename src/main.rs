@@ -20,18 +20,20 @@ enum Event {
     Number(u64),
 }
 
-#[derive(Clone)]
 struct RegisterInfo<'a> {
     reg: &'a RegisterDesc,
     value: Option<u64>,
 }
 
+#[derive(Clone)]
+struct RegisterSubset<'a> {
+    vec: Vec<&'a RegisterDesc>,
+    prefix: String,
+}
+
 enum TState<'a> {
     Empty,
-    Ambiguous {
-        vec: Vec<&'a RegisterDesc>,
-        prefix: String,
-    },
+    Ambiguous(RegisterSubset<'a>),
     Selected(RegisterInfo<'a>),
 }
 
@@ -58,6 +60,15 @@ impl<'a> RegisterInfo<'a> {
     }
 }
 
+impl<'a> RegisterSubset<'a> {
+    fn new(vec: Vec<&'a RegisterDesc>, prefix: &str) -> RegisterSubset<'a> {
+        RegisterSubset {
+            vec,
+            prefix: String::from(prefix),
+        }
+    }
+}
+
 impl<'a> TState<'a> {
     fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
         let it = data
@@ -67,10 +78,7 @@ impl<'a> TState<'a> {
         match m.len() {
             0 => TState::Empty,
             1 => TState::Selected(RegisterInfo::new(m[0])),
-            _ => TState::Ambiguous {
-                vec: m,
-                prefix: prefix.to_string(),
-            },
+            _ => TState::Ambiguous(RegisterSubset::new(m, prefix)),
         }
     }
 }
@@ -89,14 +97,11 @@ impl<'a> Fsm<'a> {
             (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, self.data),
 
             /* From Ambiguous */
-            (TState::Ambiguous { vec, prefix }, event) => match event {
-                Event::Number(x) if (x as usize) < vec.len() => {
-                    TState::Selected(RegisterInfo::new(vec[x as usize]))
+            (TState::Ambiguous(subset), event) => match event {
+                Event::Number(x) if (x as usize) < subset.vec.len() => {
+                    TState::Selected(RegisterInfo::new(subset.vec[x as usize]))
                 }
-                _ => TState::Ambiguous {
-                    vec: vec.to_vec(),
-                    prefix: prefix.to_string(),
-                },
+                _ => TState::Ambiguous(subset.clone()),
             },
 
             /* From Selected */
@@ -112,8 +117,8 @@ impl<'a> Fsm<'a> {
             println!("{}", reg);
         }
 
-        if let TState::Ambiguous { vec, prefix: _ } = &self.state {
-            for (i, reg) in vec.iter().enumerate() {
+        if let TState::Ambiguous(subset) = &self.state {
+            for (i, reg) in subset.vec.iter().enumerate() {
                 println!("{}: {}", i, reg.name);
             }
         }
@@ -122,7 +127,7 @@ impl<'a> Fsm<'a> {
     fn prompt(&self) -> &str {
         match &self.state {
             TState::Empty => "",
-            TState::Ambiguous { vec: _, prefix } => prefix,
+            TState::Ambiguous(subset) => subset.prefix.as_ref(),
             TState::Selected(reg) => reg.reg.name.as_ref(),
         }
     }
