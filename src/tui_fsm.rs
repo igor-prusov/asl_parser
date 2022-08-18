@@ -29,7 +29,7 @@ enum TState<'a> {
 }
 
 struct Fsm<'a> {
-    data: &'a BTreeMap<String, RegisterDesc>,
+    data: FsmData<'a>,
     state: TState<'a>,
 }
 
@@ -70,12 +70,9 @@ impl<'a> RegisterSubset<'a> {
     }
 }
 
-impl<'a> TState<'a> {
-    fn from_prefix(prefix: &str, data: &'a BTreeMap<String, RegisterDesc>) -> TState<'a> {
-        let it = data
-            .range(String::from(prefix)..)
-            .take_while(|x| x.0.starts_with(&prefix));
-        let m: Vec<&RegisterDesc> = it.map(|(_, v)| v).collect();
+impl<'a, 'b> TState<'b> {
+    fn from_prefix(prefix: &str, data: &'a FsmData<'b>) -> TState<'b> {
+        let m = data.select(prefix);
         match m.len() {
             0 => TState::Empty,
             1 => TState::Selected(RegisterInfo::new(m[0])),
@@ -86,8 +83,9 @@ impl<'a> TState<'a> {
 
 impl<'a> Fsm<'a> {
     fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
+        let d = FsmData::new(data);
         Fsm {
-            data,
+            data: d,
             state: TState::Empty,
         }
     }
@@ -95,7 +93,7 @@ impl<'a> Fsm<'a> {
         self.state = match (&self.state, event) {
             /* From Empty */
             (TState::Empty, Event::Number(_)) => TState::Empty,
-            (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, self.data),
+            (TState::Empty, Event::Text(s)) => TState::from_prefix(&s, &self.data),
 
             /* From Ambiguous */
             (TState::Ambiguous(subset), event) => match event {
@@ -111,7 +109,7 @@ impl<'a> Fsm<'a> {
                 value: Some(x),
             }),
 
-            (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, self.data),
+            (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, &self.data),
         };
     }
 
@@ -125,6 +123,23 @@ impl<'a> Fsm<'a> {
             TState::Ambiguous(subset) => subset.prefix.as_ref(),
             TState::Selected(reg) => reg.reg.name.as_ref(),
         }
+    }
+}
+
+struct FsmData<'a> {
+    data: &'a BTreeMap<String, RegisterDesc>,
+}
+
+impl<'a> FsmData<'a> {
+    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> FsmData<'a> {
+        FsmData { data }
+    }
+    fn select(&self, prefix: &str) -> Vec<&'a RegisterDesc> {
+        let it = self
+            .data
+            .range(String::from(prefix)..)
+            .take_while(|x| x.0.starts_with(&prefix));
+        it.map(|(_, v)| v).collect()
     }
 }
 
