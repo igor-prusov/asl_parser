@@ -22,15 +22,20 @@ struct RegisterSubset<'a> {
     prefix: String,
 }
 
-enum TState<'a> {
+enum TState<'a, T: Single<'a>> {
     Empty,
     Ambiguous(RegisterSubset<'a>),
-    Selected(RegisterInfo<'a>),
+    Selected(T),
 }
 
-struct Fsm<'a> {
+trait Single<'a> {
+    fn new(reg: &'a RegisterDesc, value: Option<u64>) -> Self;
+    fn get_reg(&self) -> &'a RegisterDesc;
+}
+
+struct Fsm<'a, T: Single<'a>> {
     data: FsmData<'a>,
-    state: TState<'a>,
+    state: TState<'a, T>,
 }
 
 impl<'a> fmt::Display for RegisterInfo<'a> {
@@ -43,21 +48,25 @@ impl<'a> fmt::Display for RegisterInfo<'a> {
     }
 }
 
+impl<'a> Single<'a> for RegisterInfo<'a> {
+    fn new(reg: &'a RegisterDesc, value: Option<u64>) -> Self {
+        RegisterInfo {
+            reg: reg,
+            value: value,
+        }
+    }
+
+    fn get_reg(&self) -> &'a RegisterDesc {
+        self.reg
+    }
+}
+
 impl<'a> fmt::Display for RegisterSubset<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, reg) in self.vec.iter().enumerate() {
             writeln!(f, "{}: {}", i, reg.name)?;
         }
         Ok(())
-    }
-}
-
-impl<'a> RegisterInfo<'a> {
-    fn new(desc: &'a RegisterDesc) -> Self {
-        RegisterInfo {
-            reg: desc,
-            value: None,
-        }
     }
 }
 
@@ -70,19 +79,19 @@ impl<'a> RegisterSubset<'a> {
     }
 }
 
-impl<'a, 'b> TState<'b> {
-    fn from_prefix(prefix: &str, data: &'a FsmData<'b>) -> TState<'b> {
+impl<'a, 'b, T: Single<'b>> TState<'b, T> {
+    fn from_prefix(prefix: &str, data: &'a FsmData<'b>) -> TState<'b, T> {
         let m = data.select(prefix);
         match m.len() {
             0 => TState::Empty,
-            1 => TState::Selected(RegisterInfo::new(m[0])),
+            1 => TState::Selected(T::new(m[0], None)),
             _ => TState::Ambiguous(RegisterSubset::new(m, prefix)),
         }
     }
 }
 
-impl<'a> Fsm<'a> {
-    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a> {
+impl<'a, T: Single<'a>> Fsm<'a, T> {
+    fn new(data: &'a BTreeMap<String, RegisterDesc>) -> Fsm<'a, T> {
         let d = FsmData::new(data);
         Fsm {
             data: d,
@@ -98,22 +107,21 @@ impl<'a> Fsm<'a> {
             /* From Ambiguous */
             (TState::Ambiguous(subset), event) => match event {
                 Event::Number(x) if (x as usize) < subset.vec.len() => {
-                    TState::Selected(RegisterInfo::new(subset.vec[x as usize]))
+                    TState::Selected(T::new(subset.vec[x as usize], None))
                 }
                 _ => TState::Ambiguous(subset.clone()),
             },
 
             /* From Selected */
-            (TState::Selected(reg), Event::Number(x)) => TState::Selected(RegisterInfo {
-                reg: reg.reg,
-                value: Some(x),
-            }),
+            (TState::Selected(reg), Event::Number(x)) => {
+                TState::Selected(T::new(&reg.get_reg(), Some(x)))
+            }
 
             (TState::Selected(_), Event::Text(value)) => TState::from_prefix(&value, &self.data),
         };
     }
 
-    fn current(&'a self) -> &'a TState<'a> {
+    fn current(&'a self) -> &'a TState<'a, T> {
         &self.state
     }
 
@@ -121,7 +129,7 @@ impl<'a> Fsm<'a> {
         match &self.state {
             TState::Empty => "",
             TState::Ambiguous(subset) => subset.prefix.as_ref(),
-            TState::Selected(reg) => reg.reg.name.as_ref(),
+            TState::Selected(reg) => reg.get_reg().name.as_ref(),
         }
     }
 }
@@ -144,7 +152,7 @@ impl<'a> FsmData<'a> {
 }
 
 pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
-    let mut fsm = Fsm::new(data);
+    let mut fsm = Fsm::<RegisterInfo>::new(data);
     println!("Enter register names:");
     loop {
         print!("{}> ", fsm.prompt());
