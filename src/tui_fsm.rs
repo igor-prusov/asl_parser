@@ -1,15 +1,12 @@
 use std::{
     collections::BTreeMap,
-    fmt,
     io::{self, Write},
 };
 
+use crate::prefix_fsm::{Event, Fsm, Multiple, Single, TState};
 use mra_parser::RegisterDesc;
 
-enum Event {
-    Text(String),
-    Number(u64),
-}
+/*
 
 struct RegisterInfo<'a> {
     reg: &'a RegisterDesc,
@@ -22,22 +19,8 @@ struct RegisterSubset<'a> {
     prefix: String,
 }
 
-enum TState<T, U> {
-    Empty,
-    Ambiguous(U),
-    Selected(T),
-}
 
-trait Single<'a> {
-    fn new(reg: &'a RegisterDesc, value: Option<u64>) -> Self;
-    fn get_reg(&self) -> &'a RegisterDesc;
-}
 
-trait Multiple<'a> {
-    fn new(vec: Vec<&'a RegisterDesc>, prefix: &str) -> Self;
-    fn get_vec(&self) -> &Vec<&'a RegisterDesc>;
-    fn get_prefix(&self) -> &str;
-}
 
 struct Fsm<'a, T: Single<'a>, U: Multiple<'a>> {
     data: FsmData<'a>,
@@ -75,12 +58,16 @@ impl<'a> Multiple<'a> for RegisterSubset<'a> {
         }
     }
 
-    fn get_prefix(&self) -> &str {
-        self.prefix.as_ref()
+    fn len(&self) -> usize {
+        self.vec.len()
     }
 
-    fn get_vec(&self) -> &Vec<&'a RegisterDesc> {
-        &self.vec
+    fn at(&self, index: usize) -> &'a RegisterDesc {
+        &self.vec[index]
+    }
+
+    fn get_prefix(&self) -> &str {
+        self.prefix.as_ref()
     }
 }
 
@@ -120,8 +107,8 @@ impl<'a, T: Single<'a>, U: Multiple<'a> + Clone> Fsm<'a, T, U> {
 
             /* From Ambiguous */
             (TState::Ambiguous(subset), event) => match event {
-                Event::Number(x) if (x as usize) < subset.get_vec().len() => {
-                    TState::Selected(T::new(subset.get_vec()[x as usize], None))
+                Event::Number(x) if (x as usize) < subset.len() => {
+                    TState::Selected(T::new(subset.at(x as usize), None))
                 }
                 _ => TState::Ambiguous(subset.clone()),
             },
@@ -165,12 +152,58 @@ impl<'a> FsmData<'a> {
     }
 }
 
+*/
+/*
+struct SingleString(String);
+struct MultipleStrings(Vec<String>);
+
+impl Single for SingleString {
+}
+
+impl Multiple for MultipleStrings {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn at(&self, index: usize) -> dyn Single {
+        SingleString(self.0[index])
+    }
+}
+
+ */
+
 pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
-    let mut fsm = Fsm::<RegisterInfo, RegisterSubset>::new(data);
+    let f = |prefix: &str| -> TState {
+        let it = data
+            .range(String::from(prefix)..)
+            .take_while(|x| x.0.starts_with(&prefix));
+
+        let v: Vec<String> = it.map(|(_, v)| v.name.clone()).collect();
+
+        match v.len() {
+            0 => TState::Empty,
+            1 => TState::Selected(v[0].clone()),
+            _ => TState::Ambiguous(v),
+        }
+    };
+    let print_one = |name: &str| -> String {
+        match data.get(name) {
+            Some(x) => format!("{}", x),
+            None => {
+                let msg = format!("Can't find {}:", name);
+                panic!("{}", msg);
+            }
+        }
+    };
+    let mut fsm = Fsm {
+        state: TState::Empty,
+        from_prefix: f,
+        print_one,
+    };
     println!("Enter register names:");
+    print!("> ");
+    io::stdout().flush()?;
     loop {
-        print!("{}> ", fsm.prompt());
-        io::stdout().flush()?;
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
 
@@ -185,10 +218,26 @@ pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
         };
 
         fsm.next(event);
-        match fsm.current() {
-            TState::Selected(x) => println!("{}", x),
-            TState::Ambiguous(x) => println!("{}", x),
-            TState::Empty => (),
+        match &fsm.state {
+            TState::Selected(name) => {
+                let name = name.to_lowercase();
+                let reg = data.get(&name).expect("Should always find this element");
+                println!("{}", reg);
+                print!("{} > ", reg.name);
+                io::stdout().flush()?;
+            }
+
+            TState::Ambiguous(v) => {
+                for (i, x) in v.iter().enumerate() {
+                    println!("{}) {}", i, x)
+                }
+                print!("> ");
+                io::stdout().flush()?;
+            }
+            TState::Empty => {
+                print!("> ");
+                io::stdout().flush()?;
+            }
         }
     }
     Ok(())

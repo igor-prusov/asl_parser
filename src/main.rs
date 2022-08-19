@@ -7,6 +7,7 @@ use asl_helpers::{build_regs_asl, regs_asl_path};
 use tui_fsm::run_tui;
 
 mod tui_fsm;
+mod prefix_fsm;
 
 fn init_state() -> File {
     let path = regs_asl_path();
