@@ -175,7 +175,7 @@ fn program() {
     assert!(matches!(&prog[1], Statement::Register(_)));
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BitfieldDesc {
     pub from: u32,
     pub to: u32,
@@ -187,15 +187,18 @@ pub struct RegisterDesc {
     pub name: String,
     pub bits: u32,
     pub fields: Vec<BitfieldDesc>,
+    pub value: Option<u64>,
 }
 
 impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut names = Vec::new();
         let mut ranges = Vec::new();
+        let mut values = Vec::new();
         enum Row {
             Names,
             Bits,
+            Values,
         }
 
         writeln!(f, "{}", self.name)?;
@@ -207,24 +210,38 @@ impl fmt::Display for RegisterDesc {
             } else {
                 format!(" {}..{} ", field.to, field.from)
             });
+            let mask_shift = field.to - field.from;
+
+            if self.value.is_none() {
+                values.push(String::new());
+                continue;
+            }
+
+            let mask = (1 as u64) << mask_shift;
+            let mask = (mask | mask - 1) << field.from;
+
+            let val = (mask & self.value.unwrap_or(0)) >> field.from;
+            values.push(format!(" {} ", val));
         }
 
         let print_row = |f: &mut fmt::Formatter, index: Row| -> fmt::Result {
-            for (a, b) in names.iter().zip(&ranges) {
+            for ((a, b), c) in names.iter().zip(&ranges).zip(&values) {
                 let size = max(a.len(), b.len());
-                let c = match &index {
+                let size = max(c.len(), size);
+                let d = match &index {
                     Row::Names => a,
                     Row::Bits => b,
+                    Row::Values => c,
                 };
 
-                let offset = (size - c.len()) / 2;
+                let offset = (size - d.len()) / 2;
                 write!(f, "|")?;
                 for _ in 0..offset {
                     write!(f, " ")?;
                 }
-                write!(f, "{}", c)?;
+                write!(f, "{}", d)?;
 
-                for _ in offset + c.len()..size {
+                for _ in offset + d.len()..size {
                     write!(f, " ")?;
                 }
             }
@@ -233,8 +250,9 @@ impl fmt::Display for RegisterDesc {
         };
 
         let print_line = |f: &mut fmt::Formatter| -> fmt::Result {
-            for (a, b) in names.iter().zip(&ranges) {
+            for ((a, b), c) in names.iter().zip(&ranges).zip(&values) {
                 let size = max(a.len(), b.len());
+                let size = max(c.len(), size);
                 write!(f, "+")?;
                 for _ in 0..size {
                     write!(f, "-")?;
@@ -247,7 +265,12 @@ impl fmt::Display for RegisterDesc {
         print_row(f, Row::Bits)?;
         print_line(f)?;
         print_row(f, Row::Names)?;
-        print_line(f)
+        print_line(f)?;
+        if self.value.is_some() {
+            print_row(f, Row::Values)?;
+            print_line(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -297,6 +320,7 @@ pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
                     name: reg.name.to_string(),
                     bits: reg.bits,
                     fields,
+                    value: None,
                 },
             );
         }

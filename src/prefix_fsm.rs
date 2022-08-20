@@ -10,7 +10,7 @@ pub enum TState<T> {
 }
 
 pub trait Item {
-    fn update(&self, x: u64);
+    fn update(&mut self, x: u64);
 }
 
 pub struct Fsm<T, F>
@@ -49,8 +49,9 @@ impl<T: Clone + Item, F: Fn(&str) -> Vec<T>> Fsm<T, F> {
 
             /* From Selected */
             (TState::Selected(reg), Event::Number(x)) => {
-                reg.update(x);
-                TState::Selected(reg.clone())
+                let mut r = reg.clone();
+                r.update(x);
+                TState::Selected(r)
             }
 
             (TState::Selected(_), Event::Text(s)) => {
