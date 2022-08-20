@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    fmt,
     io::{self, Write},
 };
 
@@ -16,12 +15,6 @@ impl<'a> Item for Elem<'a> {
     }
 }
 
-impl<'a> fmt::Display for Elem<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 fn get_prompt<'a>(state: &'a TState<Elem>) -> &'a str {
     match &state {
         TState::Empty => "",
@@ -32,11 +25,10 @@ fn get_prompt<'a>(state: &'a TState<Elem>) -> &'a str {
 
 pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
     let mut fsm = Fsm::new(|prefix: &str| -> Vec<Elem> {
-        let it = data
-            .range(String::from(prefix)..)
-            .take_while(|x| x.0.starts_with(&prefix));
-
-        it.map(|(_, v)| Elem(v)).collect()
+        data.range(String::from(prefix)..)
+            .take_while(|x| x.0.starts_with(&prefix))
+            .map(|p| Elem(p.1))
+            .collect()
     });
 
     println!("Enter register names:");
