@@ -8,7 +8,7 @@ use crate::ast::{Bitfield, Range, Register};
 #[macro_use]
 extern crate lalrpop_util;
 
-lalrpop_mod!(pub registers); // syntesized by LALRPOP
+lalrpop_mod!(#[allow(clippy::all)] pub registers); // syntesized by LALRPOP
 mod ast;
 
 #[cfg(test)]
@@ -217,8 +217,8 @@ impl fmt::Display for RegisterDesc {
                 continue;
             }
 
-            let mask = (1 as u64) << mask_shift;
-            let mask = (mask | mask - 1) << field.from;
+            let mask = 1 << mask_shift;
+            let mask = (mask | (mask - 1)) << field.from;
 
             let val = (mask & self.value.unwrap_or(0)) >> field.from;
             values.push(format!(" {} ", val));
