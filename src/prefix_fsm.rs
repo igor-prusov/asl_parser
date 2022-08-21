@@ -72,7 +72,7 @@ impl<T: Clone + Item, F: Fn(&str) -> Vec<T>> Fsm<T, F> {
 #[cfg(test)]
 mod tests {
     use crate::prefix_fsm::{Event, Fsm, Item, TState};
-    #[derive(Clone)]
+    #[derive(Clone, PartialEq)]
     struct Elem(String, Option<u64>);
     impl Elem {
         fn new(s: &str) -> Elem {
@@ -96,18 +96,42 @@ mod tests {
         }
     }
 
+    fn assert_selected_num(state: &TState<Elem>, s: &str, num: u64) {
+        assert!(matches!(state, TState::Selected(Elem(_, Some(_)))));
+        if let TState::Selected(Elem(name, Some(value))) = state {
+            assert_eq!(name, s);
+            assert_eq!(value.to_owned(), num);
+        }
+    }
+
     fn assert_empty(state: &TState<Elem>) {
         assert!(matches!(state, TState::Empty));
     }
 
+    fn assert_ambiguous(state: &TState<Elem>, data: &Vec<&str>, prefix: &str) {
+        assert!(matches!(state, TState::Ambiguous(_, _)));
+        if let TState::Ambiguous(s, v) = state {
+            assert_eq!(s, prefix);
+            for x in data {
+                if x.starts_with(prefix) {
+                    let el = Elem::new(x);
+                    assert!(v.contains(&el));
+                } else {
+                    let el = Elem::new(x);
+                    assert!(!v.contains(&el));
+                }
+            }
+        }
+    }
+
     #[test]
     fn test() {
+        let data = vec!["Single", "Multiple1", "Multiple2"];
         let fsm_create = || {
             Fsm::new(|prefix| -> Vec<Elem> {
-                let data = vec!["Single", "Multiple1", "Multiple2"];
                 let mut v = Vec::new();
 
-                for x in data {
+                for x in &data {
                     if x.starts_with(prefix) {
                         v.push(Elem::new(x));
                     }
@@ -117,24 +141,76 @@ mod tests {
             })
         };
 
-        /* Empty */
+        /*
+         * Empty
+         */
         let mut fsm = fsm_create();
         assert!(matches!(fsm.state, TState::Empty));
 
+        /*
+         * Empty ---|Number|--> Empty
+         */
         fsm.next(Event::Number(1));
         assert_empty(&fsm.state);
 
+        /*
+         * Empty ---|Text(miss)|--> Empty
+         */
         fsm.next(make_text("None"));
         assert_empty(&fsm.state);
 
-        /* Empty -> Selected */
+        /*
+         * Empty ---|Text(match)|--> Selected
+         */
         fsm.next(make_text("Si"));
         assert_selected(&fsm.state, "Single");
 
+        /*
+         * Selected ---|Number|--> Selected
+         */
+        fsm.next(Event::Number(42));
+        assert_selected_num(&fsm.state, "Single", 42);
+
+        /*
+         * Selected ---|Number|--> Selected
+         */
+        fsm.next(Event::Number(43));
+        assert_selected_num(&fsm.state, "Single", 43);
+
+        /*
+         * Selected ---|Text(match)|--> Selected
+         */
         fsm.next(make_text("Si"));
         assert_selected(&fsm.state, "Single");
 
-        /* Selected -> Empty */
+        /*
+         * Selected ---|Text(miss)|--> Empty
+         */
         fsm.next(make_text("non-existent"));
+        assert_empty(&fsm.state);
+
+        /*
+         * Empty ---|Text(amb.)|--> Multiple
+         */
+        fsm.next(make_text("Mult"));
+        assert_ambiguous(&fsm.state, &data, "Mult");
+
+        /*
+         * Ambiguous ---|Text|--> Ambiguous
+         */
+        fsm.next(make_text("Single"));
+        assert_ambiguous(&fsm.state, &data, "Mult");
+
+        /*
+         * Ambiguous ---|Number (not matching)|--> Ambiguous
+         */
+        fsm.next(Event::Number(2));
+        assert_ambiguous(&fsm.state, &data, "Mult");
+
+        /*
+         * Ambiguous ---|Number|--> Selected
+         */
+        fsm.next(Event::Number(1));
+        assert_selected(&fsm.state, "Multiple2");
     }
 }
