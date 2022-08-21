@@ -68,3 +68,73 @@ impl<T: Clone + Item, F: Fn(&str) -> Vec<T>> Fsm<T, F> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::prefix_fsm::{Event, Fsm, Item, TState};
+    #[derive(Clone)]
+    struct Elem(String, Option<u64>);
+    impl Elem {
+        fn new(s: &str) -> Elem {
+            Elem(String::from(s), None)
+        }
+    }
+    impl Item for Elem {
+        fn update(&mut self, x: u64) {
+            self.1 = Some(x);
+        }
+    }
+
+    fn make_text(s: &str) -> Event {
+        Event::Text(String::from(s))
+    }
+
+    fn assert_selected(state: &TState<Elem>, s: &str) {
+        assert!(matches!(state, TState::Selected(Elem(_, None))));
+        if let TState::Selected(Elem(x, None)) = state {
+            assert_eq!(x, s)
+        }
+    }
+
+    fn assert_empty(state: &TState<Elem>) {
+        assert!(matches!(state, TState::Empty));
+    }
+
+    #[test]
+    fn test() {
+        let fsm_create = || {
+            Fsm::new(|prefix| -> Vec<Elem> {
+                let data = vec!["Single", "Multiple1", "Multiple2"];
+                let mut v = Vec::new();
+
+                for x in data {
+                    if x.starts_with(prefix) {
+                        v.push(Elem::new(x));
+                    }
+                }
+
+                v
+            })
+        };
+
+        /* Empty */
+        let mut fsm = fsm_create();
+        assert!(matches!(fsm.state, TState::Empty));
+
+        fsm.next(Event::Number(1));
+        assert_empty(&fsm.state);
+
+        fsm.next(make_text("None"));
+        assert_empty(&fsm.state);
+
+        /* Empty -> Selected */
+        fsm.next(make_text("Si"));
+        assert_selected(&fsm.state, "Single");
+
+        fsm.next(make_text("Si"));
+        assert_selected(&fsm.state, "Single");
+
+        /* Selected -> Empty */
+        fsm.next(make_text("non-existent"));
+    }
+}
