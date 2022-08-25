@@ -21,6 +21,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "asl_parser"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "futures",
+ "lalrpop",
+ "lalrpop-util",
+ "regex",
+ "reqwest",
+ "tempdir",
+ "tokio",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -589,20 +603,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "mra_parser"
-version = "0.1.0"
-dependencies = [
- "dirs",
- "futures",
- "lalrpop",
- "lalrpop-util",
- "regex",
- "reqwest",
- "tempdir",
- "tokio",
 ]
 
 [[package]]

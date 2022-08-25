@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::prefix_fsm::{Event, Fsm, Item, TState};
-use mra_parser::RegisterDesc;
+use asl_parser::RegisterDesc;
 
 #[derive(Clone)]
 struct Elem<'a>(&'a RegisterDesc, Option<u64>);

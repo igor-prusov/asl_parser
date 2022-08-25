@@ -1,6 +1,6 @@
 use std::{env::args, fs::File, io::Read};
 
-use mra_parser::parse_registers;
+use asl_parser::parse_registers;
 
 mod asl_helpers;
 use asl_helpers::{build_regs_asl, regs_asl_path};

@@ -14,7 +14,7 @@ pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 pub fn regs_asl_path() -> PathBuf {
     let path = dirs::data_dir().expect("Can't get user data directory");
 
-    let config_dir = path.join("mra_parser");
+    let config_dir = path.join("asl_parser");
 
     fs::create_dir_all(&config_dir).expect("Can't create app data directory");
 
