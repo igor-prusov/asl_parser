@@ -8,14 +8,13 @@ impl Event {
     pub fn from_str(input: &str) -> Self {
         let input = input.trim().to_lowercase();
 
-
         if let Some(s) = input.strip_prefix("0x") {
             if let Ok(num) = u64::from_str_radix(s, 16) {
-                return Event::Number(num)
+                return Event::Number(num);
             }
         }
 
-        if let Ok(num)= input.parse::<u64>() {
+        if let Ok(num) = input.parse::<u64>() {
             Event::Number(num)
         } else {
             Event::Text(String::from(input))
@@ -241,6 +240,5 @@ mod tests {
 
         let e = Event::from_str("0x1");
         assert_eq!(e, Event::Number(1));
-
     }
 }

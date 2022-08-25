@@ -17,12 +17,16 @@ impl<'a> Item for Elem<'a> {
 }
 impl<'a> fmt::Display for Elem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", RegisterDesc{
-            name: self.0.name.clone(),
-            bits: self.0.bits,
-            fields: self.0.fields.clone(),
-            value: self.1,
-        })?;
+        write!(
+            f,
+            "{}",
+            RegisterDesc {
+                name: self.0.name.clone(),
+                bits: self.0.bits,
+                fields: self.0.fields.clone(),
+                value: self.1,
+            }
+        )?;
         Ok(())
     }
 }
@@ -52,10 +56,9 @@ pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
         let event = Event::from_str(&input);
         if let Event::Text(s) = &event {
             if s.len() == 0 {
-                break
+                break;
             }
         };
-
 
         fsm.next(event);
         if let TState::Selected(el) = &fsm.state {
