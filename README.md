@@ -1,8 +1,8 @@
 # asl_parser
 
-Toy project to experiment with [ASL](https://alastairreid.github.io/specification_languages/). For now it just parses registers descriptions and pretty-prints register format and values.
+Toy project to experiment with [ASL](https://alastairreid.github.io/specification_languages/). For now it just parses registers specification and pretty-prints format and values.
 
-It requires regs.asl file generated from Arm's Machine Readable Architecture Specification which you can build using instructions from [alastairreid/mra_tools](https://github.com/alastairreid/mra_tools)
+It requires regs.asl file generated from Arm's Machine Readable Architecture Specification which you can build using instructions from [alastairreid/mra_tools](https://github.com/alastairreid/mra_tools).
 This file is searched in following places:
 
 | OS | Path |
