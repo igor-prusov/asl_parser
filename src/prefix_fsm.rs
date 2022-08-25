@@ -17,7 +17,7 @@ impl Event {
         if let Ok(num) = input.parse::<u64>() {
             Event::Number(num)
         } else {
-            Event::Text(String::from(input))
+            Event::Text(input)
         }
     }
 }

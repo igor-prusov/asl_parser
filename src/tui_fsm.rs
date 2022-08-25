@@ -17,8 +17,7 @@ impl<'a> Item for Elem<'a> {
 }
 impl<'a> fmt::Display for Elem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
+        write!(f,
             "{}",
             RegisterDesc {
                 name: self.0.name.clone(),
@@ -55,7 +54,7 @@ pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
         io::stdin().read_line(&mut input)?;
         let event = Event::from_str(&input);
         if let Event::Text(s) = &event {
-            if s.len() == 0 {
+            if s.is_empty() {
                 break;
             }
         };
