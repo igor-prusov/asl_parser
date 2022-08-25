@@ -49,16 +49,13 @@ pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
         io::stdout().flush()?;
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
-
-        let input = input.trim().to_lowercase();
-        if input.is_empty() {
-            break;
-        }
-
-        let event = match input.parse::<u64>() {
-            Ok(x) => Event::Number(x),
-            Err(_) => Event::Text(input),
+        let event = Event::from_str(&input);
+        if let Event::Text(s) = &event {
+            if s.len() == 0 {
+                break
+            }
         };
+
 
         fsm.next(event);
         if let TState::Selected(el) = &fsm.state {

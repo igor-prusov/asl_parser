@@ -1,6 +1,26 @@
+#[derive(PartialEq, Debug)]
 pub enum Event {
     Text(String),
     Number(u64),
+}
+
+impl Event {
+    pub fn from_str(input: &str) -> Self {
+        let input = input.trim().to_lowercase();
+
+
+        if let Some(s) = input.strip_prefix("0x") {
+            if let Ok(num) = u64::from_str_radix(s, 16) {
+                return Event::Number(num)
+            }
+        }
+
+        if let Ok(num)= input.parse::<u64>() {
+            Event::Number(num)
+        } else {
+            Event::Text(String::from(input))
+        }
+    }
 }
 
 pub enum TState<T> {
@@ -125,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test() {
+    fn test_fsm() {
         let data = vec!["Single", "Multiple1", "Multiple2"];
         let fsm_create = || {
             Fsm::new(|prefix| -> Vec<Elem> {
@@ -212,5 +232,15 @@ mod tests {
          */
         fsm.next(Event::Number(1));
         assert_selected(&fsm.state, "Multiple2");
+    }
+
+    #[test]
+    fn test_event() {
+        let e = Event::from_str("1");
+        assert_eq!(e, Event::Number(1));
+
+        let e = Event::from_str("0x1");
+        assert_eq!(e, Event::Number(1));
+
     }
 }
