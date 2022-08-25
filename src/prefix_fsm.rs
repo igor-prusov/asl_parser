@@ -2,11 +2,16 @@
 pub enum Event {
     Text(String),
     Number(u64),
+    Empty,
 }
 
 impl Event {
     pub fn from_str(input: &str) -> Self {
         let input = input.trim().to_lowercase();
+
+        if input.is_empty() {
+            return Event::Empty;
+        }
 
         if let Some(s) = input.strip_prefix("0x") {
             if let Ok(num) = u64::from_str_radix(s, 16) {
@@ -26,6 +31,7 @@ pub enum TState<T> {
     Empty,
     Ambiguous(String, Vec<T>),
     Selected(T),
+    Final,
 }
 
 pub trait Item {
@@ -77,6 +83,10 @@ impl<T: Clone + Item, F: Fn(&str) -> Vec<T>> Fsm<T, F> {
                 let v = (self.from_prefix)(&s);
                 Self::vec_to_state(s.as_str(), v)
             }
+
+            /* Final */
+            (_, Event::Empty) => TState::Final,
+            (TState::Final, _) => TState::Final,
         }
     }
 

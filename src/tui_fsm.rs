@@ -17,7 +17,8 @@ impl<'a> Item for Elem<'a> {
 }
 impl<'a> fmt::Display for Elem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "{}",
             RegisterDesc {
                 name: self.0.name.clone(),
@@ -35,6 +36,7 @@ fn get_prompt<'a>(state: &'a TState<Elem>) -> &'a str {
         TState::Empty => "",
         TState::Ambiguous(prefix, _) => prefix,
         TState::Selected(reg) => reg.0.name.as_ref(),
+        TState::Final => "",
     }
 }
 
@@ -53,20 +55,18 @@ pub fn run_tui(data: &BTreeMap<String, RegisterDesc>) -> io::Result<()> {
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
         let event = Event::from_str(&input);
-        if let Event::Text(s) = &event {
-            if s.is_empty() {
-                break;
-            }
-        };
 
         fsm.next(event);
-        if let TState::Selected(el) = &fsm.state {
-            println!("{}", el);
-        }
-        if let TState::Ambiguous(_, v) = &fsm.state {
-            for (i, x) in v.iter().enumerate() {
-                println!("{}) {}", i, x.0.name)
+
+        match &&fsm.state {
+            TState::Selected(el) => println!("{}", el),
+            TState::Ambiguous(_, v) => {
+                for (i, x) in v.iter().enumerate() {
+                    println!("{}) {}", i, x.0.name)
+                }
             }
+            TState::Empty => (),
+            TState::Final => break,
         }
     }
     Ok(())
