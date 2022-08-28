@@ -190,6 +190,32 @@ pub struct RegisterDesc {
     pub value: Option<u64>,
 }
 
+impl RegisterDesc {
+    pub fn is_valid(&self) -> bool {
+        let mut bit_mask: u64 = 0;
+
+        for field in &self.fields {
+            for bit in field.from..field.to {
+                if bit >= self.bits {
+                    return false;
+                }
+
+                /* Skip bits overlap check for very big registers */
+                if self.bits > 64 {
+                    continue;
+                }
+
+                if bit_mask & (1 << bit) != 0 {
+                    return false;
+                }
+
+                bit_mask |= 1 << bit;
+            }
+        }
+        true
+    }
+}
+
 impl fmt::Display for RegisterDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut names = Vec::new();
@@ -280,6 +306,8 @@ pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
 
     let mut data = BTreeMap::new();
 
+    let mut skip_counter = 0;
+
     for stmt in program {
         if let Statement::Register(reg) = stmt {
             let mut fields = Vec::new();
@@ -314,17 +342,23 @@ pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
                 })
             }
 
-            data.insert(
-                reg.name.to_lowercase(),
-                RegisterDesc {
-                    name: reg.name.to_string(),
-                    bits: reg.bits,
-                    fields,
-                    value: None,
-                },
-            );
+            let reg = RegisterDesc {
+                name: reg.name.to_string(),
+                bits: reg.bits,
+                fields,
+                value: None,
+            };
+
+            if !reg.is_valid() {
+                skip_counter += 1;
+                continue;
+            }
+
+            data.insert(reg.name.to_lowercase(), reg);
         }
     }
+
+    println!("Skipped {} registers", skip_counter);
 
     data
 }
