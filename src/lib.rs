@@ -179,7 +179,7 @@ fn program() {
 pub struct BitfieldDesc {
     pub from: u32,
     pub to: u32,
-    pub name: String,
+    pub name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -195,7 +195,7 @@ impl RegisterDesc {
         let mut bit_mask: u64 = 0;
 
         for field in &self.fields {
-            for bit in field.from..field.to {
+            for bit in field.from..=field.to {
                 if bit >= self.bits {
                     return false;
                 }
@@ -214,6 +214,46 @@ impl RegisterDesc {
         }
         true
     }
+
+    pub fn from_reg(reg: &crate::ast::Register) -> Self {
+        let mut fields = Vec::new();
+        let mut expected = Some(reg.bits - 1);
+        /* Iterate over parsed Bitfields and add padding with anonymous BitfieldDescs */
+        for f in &reg.bits_desc {
+            /* Add padding before bitfield */
+            if let Some(x) = expected.filter(|x| *x != f.to) {
+                fields.push(BitfieldDesc {
+                    from: f.to + 1,
+                    to: x,
+                    name: None,
+                })
+            }
+
+            fields.push(BitfieldDesc {
+                from: f.from,
+                to: f.to,
+                name: Some(f.name.to_string()),
+            });
+
+            expected = f.from.checked_sub(1);
+        }
+
+        /* Add padding after bitfield */
+        if let Some(x) = expected {
+            fields.push(BitfieldDesc {
+                from: 0,
+                to: x,
+                name: None,
+            })
+        }
+
+        RegisterDesc {
+            name: reg.name.to_string(),
+            bits: reg.bits,
+            fields,
+            value: None,
+        }
+    }
 }
 
 impl fmt::Display for RegisterDesc {
@@ -230,7 +270,7 @@ impl fmt::Display for RegisterDesc {
         writeln!(f, "{}", self.name)?;
 
         for field in &self.fields {
-            names.push(format! {" {} ", field.name});
+            names.push(format! {" {} ", field.name.as_ref().unwrap_or(&String::new())});
             ranges.push(if field.from == field.to {
                 format!(" {} ", field.to)
             } else {
@@ -300,6 +340,42 @@ impl fmt::Display for RegisterDesc {
     }
 }
 
+/*
+fn verify_conversion(reg: &crate::ast::Register, reg_desc: &RegisterDesc) {
+    #[derive(Clone, PartialEq)]
+    enum BState {
+        Field,
+        Padding,
+    }
+
+    if reg.bits > 64 {
+        return;
+    }
+
+    let mut bits = vec![BState::Padding; 64];
+
+    for field in &reg.bits_desc {
+        for bit in field.from..=field.to {
+            bits[bit as usize] = BState::Field
+        }
+    }
+
+    for field in &reg_desc.fields {
+        for bit in field.from..=field.to {
+            let expected = if field.name.is_none() {
+                BState::Padding
+            } else {
+                BState::Field
+            };
+
+            if expected != bits[bit as usize] {
+                println!("Wrong bit: {} of {}", bit, reg.name)
+            }
+        }
+    }
+}
+*/
+
 pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
     let parser = registers::ProgramParser::new();
     let program = parser.parse(input).unwrap();
@@ -310,51 +386,16 @@ pub fn parse_registers(input: &str) -> BTreeMap<String, RegisterDesc> {
 
     for stmt in program {
         if let Statement::Register(reg) = stmt {
-            let mut fields = Vec::new();
-            let mut expected = Some(reg.bits - 1);
+            let reg_desc = RegisterDesc::from_reg(&reg);
 
-            /* Iterate over parsed Bitfields and add padding with anonymous BitfieldDescs */
-            for f in reg.bits_desc {
-                /* Add padding before bitfield */
-                if let Some(x) = expected.filter(|x| *x != f.to) {
-                    fields.push(BitfieldDesc {
-                        from: f.to + 1,
-                        to: x,
-                        name: String::new(),
-                    })
-                }
-
-                fields.push(BitfieldDesc {
-                    from: f.from,
-                    to: f.to,
-                    name: f.name.to_string(),
-                });
-
-                expected = f.from.checked_sub(1);
-            }
-
-            /* Add padding after bitfield */
-            if let Some(x) = expected {
-                fields.push(BitfieldDesc {
-                    from: 0,
-                    to: x,
-                    name: String::new(),
-                })
-            }
-
-            let reg = RegisterDesc {
-                name: reg.name.to_string(),
-                bits: reg.bits,
-                fields,
-                value: None,
-            };
-
-            if !reg.is_valid() {
+            if !reg_desc.is_valid() {
                 skip_counter += 1;
                 continue;
             }
 
-            data.insert(reg.name.to_lowercase(), reg);
+            // verify_conversion(&reg, &reg_desc);
+
+            data.insert(reg_desc.name.to_lowercase(), reg_desc);
         }
     }
 
